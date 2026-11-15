@@ -622,7 +622,9 @@ from; the validators hold the frames to that step and to their precision
   picks the frame for an hour: the nearer of two, never a mean of them, as no
   wave value is ever interpolated between hours (`WAVE_MATCH_HOURS`); none
   outside the run. Its reader keeps the pointer five minutes and every frame of
-  the run it has read. Drawing is still to come.
+  the run it has read. `force5/src/waveLayer.ts` draws the frame for the view,
+  the heights carried to the coast and kept to the basemap's sea
+  (`force5/src/waveField.ts`).
 
 ## As built: the blend per square
 

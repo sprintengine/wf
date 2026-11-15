@@ -46,15 +46,12 @@
  */
 import type { ImageSource, LngLat, Map as MapLibreMap } from "maplibre-gl";
 import { setMapView, WASH_STEP, type MapView } from "./tiledField";
+import { waterMask } from "./waterMask";
 import { KNOTS } from "./units";
 import { windColor, type Frame } from "./weather";
 import type { WindLayers } from "./windLayers";
 
-export {
-  DEFAULT_WIND,
-  parseWindLayers,
-  type WindLayers,
-} from "./windLayers";
+export { DEFAULT_WIND, parseWindLayers, type WindLayers } from "./windLayers";
 
 const STEP = 10;
 const BUCKETS = 4;
@@ -783,45 +780,15 @@ export function createWindLayer(
   let unmasked = "";
   let retries = 0;
   let washTimer = 0;
-  const washSource = () => map.getSource("wind-wash") as ImageSource | undefined;
+  const washSource = () =>
+    map.getSource("wind-wash") as ImageSource | undefined;
 
   /** The sea, as the basemap's water polygons drawn into the image's pixels. */
   const seaMask = (
     w: number,
     h: number,
     toPixel: (lng: number, lat: number) => [number, number],
-  ): Uint8ClampedArray | null => {
-    let features: ReturnType<MapLibreMap["querySourceFeatures"]> = [];
-    try {
-      features = map.querySourceFeatures("omt", { sourceLayer: "water" });
-    } catch {
-      return null;
-    }
-    if (!features.length) return null;
-    mask.width = w;
-    mask.height = h;
-    const m = mask.getContext("2d", { willReadFrequently: true })!;
-    m.clearRect(0, 0, w, h);
-    m.fillStyle = "#000";
-    m.beginPath();
-    const ring = (coords: number[][]) => {
-      coords.forEach(([lng, lat], i) => {
-        const [x, y] = toPixel(lng, lat);
-        if (i) m.lineTo(x, y);
-        else m.moveTo(x, y);
-      });
-      m.closePath();
-    };
-    for (const f of features) {
-      const g = f.geometry;
-      if (g.type === "Polygon") g.coordinates.forEach(ring);
-      else if (g.type === "MultiPolygon")
-        g.coordinates.forEach((poly) => poly.forEach(ring));
-    }
-    // Non-zero, not even-odd: neighbouring tiles overlap by their buffers.
-    m.fill("nonzero");
-    return m.getImageData(0, 0, w, h).data;
-  };
+  ) => waterMask(map, mask, w, h, toPixel);
 
   const paintWash = () => {
     washTimer = 0;
@@ -873,7 +840,8 @@ export function createWindLayer(
       );
     for (let y = 0; y < h; y++) {
       const lat =
-        (2 * Math.atan(Math.exp(yN + ((yS - yN) * (y + 0.5)) / h)) - Math.PI / 2) *
+        (2 * Math.atan(Math.exp(yN + ((yS - yN) * (y + 0.5)) / h)) -
+          Math.PI / 2) *
         (180 / Math.PI);
       for (let x = 0; x < w; x++) {
         const lng = nw.lng + ((se.lng - nw.lng) * (x + 0.5)) / w;
@@ -941,7 +909,6 @@ export function createWindLayer(
     window.clearTimeout(washTimer);
     washTimer = window.setTimeout(paintWash, delay);
   };
-
 
   /* ---- wiring ---- */
 

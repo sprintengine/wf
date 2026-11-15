@@ -1037,8 +1037,11 @@
   --color-stars-3: #cc4796;
   --color-stars-4: #ee62b0;
   --color-stars-5: #ff9ad3;
-  --color-waves-m0: #12303a;
-  --color-waves-m05: #0e4f60;
+  /* Calm water a muted sea-green, a step lighter than the deepest depth tint
+     and greener than any, so a flat sea on the Waves field reads as the
+     field's own colour, not as the chart with nothing on it. */
+  --color-waves-m0: #1e504b;
+  --color-waves-m05: #135c66;
   --color-waves-m1: #0c6c80;
   --color-waves-m2: #1b88a0;
   --color-waves-m3: #4a98d8;

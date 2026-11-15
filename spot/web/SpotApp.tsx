@@ -121,7 +121,10 @@ function SpotRoute({ id }: { id: string | null }) {
 
   return (
     // A point on the water goes back to the chart, which has no light for it.
-    <SpotFrame back={id && !pointFromId(id) ? mapSpotHref(id) : CHART_HREF}>
+    <SpotFrame
+      back={id && !pointFromId(id) ? mapSpotHref(id) : CHART_HREF}
+      pinned={state.kind === "ready"}
+    >
       {state.kind === "loading" && <Loading />}
       {state.kind === "error" && (
         <main className={s.main()}>

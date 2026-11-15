@@ -1,6 +1,7 @@
 /**
  * A riding place as a spot report: the spots around it in a thin strip, its
- * name, then the days, what it is like now on small cards beside a small
+ * name, then the days and the time slider pinned at the top (TimeSlider.tsx),
+ * what it is like now on small cards beside a small
  * satellite picture with the chart's loupe, and the graphs, each with the days
  * along its head (or the table), then any weather warnings and bathing water
  * notices, and the spot's own notes. Two faces, sentence-case labels, the
@@ -10,6 +11,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -139,6 +141,8 @@ import {
   type WavePartHour,
 } from "../../../force5/src/waveBlend";
 import { PhotoLoupe } from "./PhotoLoupe";
+import { sliderHours, weekStart } from "./slider";
+import { TimeSlider } from "./TimeSlider";
 import {
   besideMark,
   dayCard,
@@ -207,23 +211,37 @@ const styles = tv({
     // while they fit, and scroll sideways past it.
     week: "mask-fade-end relative flex min-w-0 flex-1 gap-2 overflow-x-auto scrollbar-none pr-6",
     weekRow: "flex items-center gap-1.5",
+    // The days and the hour, pinned under the site's bar as the page
+    // scrolls, the width of the page (`top` is the bar's height).
+    whenBar: [
+      "sticky top-16 z-panel -mx-4 flex flex-col gap-2 border-0 border-b border-line bg-ground px-4 pt-2 pb-2.5",
+      "max-wide:top-14 wide:-mx-6 wide:px-6",
+    ],
+    // The section's name, for a screen reader, and where a jump to the week
+    // lands: under the site's bar.
+    weekTitleHidden: "sr-only scroll-mt-16 max-wide:scroll-mt-14",
     // The outline round the days the graph has on screen, laid over the
     // strip and slid along it as the graph scrolls (`paintDayWindow`).
     dayWindow:
       "pointer-events-none absolute top-0 bottom-0 z-1 rounded-surface inset-ring-2 inset-ring-ink-2",
+    // A day's card, small enough to stay pinned at the top: its name, its
+    // best stars and its wind's range on one line, and the day's wind curve.
     day: [
-      "grid min-w-26 flex-1 shrink-0 content-start gap-1 rounded-surface border-0 bg-sunken on-card p-2 text-left text-ink",
+      "group grid min-w-24 flex-1 shrink-0 content-start gap-1 overflow-hidden rounded-surface border-0 bg-sunken on-card px-2 pt-1.5 text-left text-ink wide:min-w-36",
       "cursor-pointer transition-colors duration-fast hover:bg-line",
       RING,
     ],
-    // The day the selection is on: its name on a capsule, in ink.
-    dayOn: "rounded-full bg-inverse px-1.5 text-ink-inverse",
+    // The day the chosen hour is in: the whole card in ink.
+    dayOn: "bg-inverse text-ink-inverse hover:bg-inverse",
+    dayLine: "flex min-w-0 items-center justify-between gap-2",
     dayName:
       "justify-self-start font-body text-body font-semibold whitespace-nowrap",
     dayDate: "ml-1 font-normal opacity-70",
     range: "font-body text-body font-semibold whitespace-nowrap",
-    small: "font-body text-caption font-normal text-ink-muted",
-    spark: "block h-5 w-full",
+    small:
+      "font-body text-caption font-normal text-ink-muted group-aria-pressed:text-ink-inverse group-aria-pressed:opacity-70",
+    // The curve runs to the card's edges, along its foot.
+    spark: "-mx-2 block h-4 w-auto justify-self-stretch",
     // Where the wind at Now was measured: quiet, on the card's label.
     roSource: "font-normal",
     // The band names in a column of their own beside the hours, so no name
@@ -423,12 +441,16 @@ export function Stars({
   n,
   size = 13,
   waves = false,
+  inverse = false,
 }: {
   n: number;
   size?: number;
   waves?: boolean;
+  /** On an inked ground (the chosen day's card): the unlit stars stronger. */
+  inverse?: boolean;
 }) {
   const fill = waves ? WAVE_STAR_FILL : STAR_FILL;
+  const unlit = inverse ? "fill-line-strong" : fill[0];
   return (
     <span
       className="inline-flex items-center gap-px align-middle"
@@ -445,7 +467,7 @@ export function Stars({
           viewBox="0 0 24 24"
           aria-hidden="true"
         >
-          <path d={STAR} className={k <= n ? fill[n] : fill[0]} />
+          <path d={STAR} className={k <= n ? fill[n] : unlit} />
         </svg>
       ))}
     </span>
@@ -655,6 +677,8 @@ export function SpotReport({
     [rows, blendModels, point],
   );
   const [scrollTo, setScrollTo] = useState<WeekMove | null>(null);
+  // An hour picked on the time slider, or now: the graphs go to it.
+  const [follow, setFollow] = useState<HourMove | null>(null);
   // The models' blend, said in the Wind blend band alone: the headline wind
   // and the stars stay the one model's own.
   const blend = useMemo(() => windBlend(rows), [rows]);
@@ -703,6 +727,45 @@ export function SpotReport({
   const heroAtNow = shown === nowRow;
   const heroAt = heroAtNow || !shown ? now : shown.time;
   const dayWindow = useRef<HTMLDivElement>(null);
+  // The day cards and the time slider, pinned under the site's bar; what
+  // else holds to the top of the screen holds under them.
+  const [whenBar, setWhenBar] = useState<HTMLDivElement | null>(null);
+  const pinnedAt = usePinnedFoot(whenBar);
+  // What the page scrolls into view (a jump to the week, the keys' focus)
+  // lands under the pinned bars, not behind them.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.scrollPaddingTop = pinnedAt ? `${pinnedAt}px` : "";
+    return () => {
+      root.style.scrollPaddingTop = "";
+    };
+  }, [pinnedAt]);
+  // The time slider's hours: the graphs' own, from where the wind starts to
+  // the end of the last day, less the nights where the rider hides them.
+  const sliderWeek = useMemo(
+    () =>
+      sliderHours(rows, {
+        from: weekStart(rows, days[0]?.midnight ?? now, now),
+        to: (days.at(-1)?.midnight ?? now) + 24 * HOUR,
+        dark,
+        midnights: days.map(({ midnight }) => midnight),
+      }),
+    [rows, days, now, dark],
+  );
+  /** An hour put under the slider's needle: the page goes to it. */
+  const pickHour = (time: number) => {
+    setFocus(time);
+    const day = days.findIndex((d) => d.day.date === dublinDate(time));
+    if (day >= 0) setDayAt(day);
+    setFollow({ time, at: Date.now() });
+  };
+  /** Home on the slider: back to now, as today's card goes. */
+  const pickNow = () => {
+    setFocus(null);
+    const day = days.findIndex((d) => d.day.date === dublinDate(now));
+    if (day >= 0) setDayAt(day);
+    setFollow({ time: null, at: Date.now() });
+  };
   // Where the graph puts its arrows, at the end of the strip of days.
   const [arrowsAt, setArrowsAt] = useState<HTMLDivElement | null>(null);
   const viewSwitch = (
@@ -826,35 +889,48 @@ export function SpotReport({
             <NearbyStrip here={point ? null : spot} readings={nearby} />
           )}
           <section className="pt-2" aria-labelledby="the-week">
-            <h2 className="sr-only" id="the-week">
+            <h2 className={s.weekTitleHidden()} id="the-week">
               The days ahead
             </h2>
-            <div className={s.weekRow()}>
-              <div
-                ref={dayStrip}
-                className={s.week()}
-                role="group"
-                aria-label="Days"
-              >
-                {cards.map((card, i) => (
-                  <DayButton
-                    key={card.date}
-                    card={card}
-                    rated={!point}
-                    on={i === dayOn}
-                    onClick={() => chooseDay(i)}
-                  />
-                ))}
-                {view === "graph" && (
-                  <div
-                    ref={dayWindow}
-                    className={s.dayWindow()}
-                    data-day-window
-                    aria-hidden="true"
-                  />
-                )}
+            <div className={s.whenBar()} ref={setWhenBar} data-when-bar>
+              <div className={s.weekRow()}>
+                <div
+                  ref={dayStrip}
+                  className={s.week()}
+                  role="group"
+                  aria-label="Days"
+                >
+                  {cards.map((card, i) => (
+                    <DayButton
+                      key={card.date}
+                      card={card}
+                      rated={!point}
+                      on={i === dayOn}
+                      onClick={() => chooseDay(i)}
+                    />
+                  ))}
+                  {view === "graph" && (
+                    <div
+                      ref={dayWindow}
+                      className={s.dayWindow()}
+                      data-day-window
+                      aria-hidden="true"
+                    />
+                  )}
+                </div>
+                <div ref={setArrowsAt} className={s.arrows()} />
               </div>
-              <div ref={setArrowsAt} className={s.arrows()} />
+              <TimeSlider
+                hours={sliderWeek}
+                time={heroAt}
+                words={
+                  heroAtNow
+                    ? "Now"
+                    : `${dayNames(dublinDate(heroAt), heroAt).short} ${clock(heroAt)}`
+                }
+                onPick={pickHour}
+                onNow={pickNow}
+              />
             </div>
             <div className={s.nowBlock({ pictured: !!picture })} data-now-block>
               <div className={s.nowCards({ pictured: !!picture })}>
@@ -936,6 +1012,8 @@ export function SpotReport({
                 onFocus={setFocus}
                 backToNow={backToNow}
                 scrollTo={scrollTo}
+                follow={follow}
+                pinnedAt={pinnedAt}
                 opening={focus === null ? opening : rowIndexAt(rows, focus)}
                 dark={dark}
                 rider={rider}
@@ -1394,6 +1472,41 @@ interface WeekMove {
   time: number | null;
 }
 
+/** An hour picked on the time slider (null: now), when it was picked. */
+interface HourMove {
+  time: number | null;
+  at: number;
+}
+
+/**
+ * How far down the screen a pinned bar's foot stands while it is pinned: its
+ * `top` and its height, kept current as it wraps or the window turns.
+ */
+function usePinnedFoot(bar: HTMLElement | null) {
+  const [foot, setFoot] = useState(0);
+  useLayoutEffect(() => {
+    if (!bar) return;
+    const measure = () =>
+      setFoot(
+        Math.round(
+          (parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight,
+        ),
+      );
+    measure();
+    window.addEventListener("resize", measure);
+    const watch =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measure);
+    watch?.observe(bar);
+    return () => {
+      window.removeEventListener("resize", measure);
+      watch?.disconnect();
+    };
+  }, [bar]);
+  return foot;
+}
+
 /** Keeps the chosen day in view along the strip, on opening and after. */
 function useDayInView(dayAt: number) {
   const strip = useRef<HTMLDivElement>(null);
@@ -1439,35 +1552,42 @@ function DayButton({
   return (
     <button
       type="button"
-      className={s.day()}
+      className={s.day({ className: on ? s.dayOn() : undefined })}
       aria-pressed={on}
       onClick={onClick}
       data-day-card={card.date}
     >
-      <span className={s.dayName({ className: on ? s.dayOn() : undefined })}>
+      <span className={s.dayName()}>
         {card.label}
         <span className={s.dayDate()}>{card.day}</span>
       </span>
-      {card.notice && !card.best ? (
-        <NoticeMark level={card.notice.level}>{card.notice.word}</NoticeMark>
-      ) : !rated ? null : (
-        <span className="inline-flex items-center gap-1.5">
-          <Stars n={card.best} />
-          {card.notice && (
-            <>
-              <NoticeMark level={card.notice.level} />
-              <span className="sr-only">
-                {card.notice.word}, no stars for some hours
-              </span>
-            </>
-          )}
+      <span className={s.dayLine()}>
+        {card.notice && !card.best ? (
+          <NoticeMark level={card.notice.level}>{card.notice.word}</NoticeMark>
+        ) : !rated ? null : (
+          <span className="inline-flex items-center gap-1.5">
+            <Stars n={card.best} size={11} inverse={on} />
+            {card.notice && (
+              <>
+                <NoticeMark level={card.notice.level} />
+                <span className="sr-only">
+                  {card.notice.word}, no stars for some hours
+                </span>
+              </>
+            )}
+          </span>
+        )}
+        {/* On a phone a rated day's card has room for its stars alone. */}
+        <span
+          className={s.range({
+            className: rated ? "max-wide:hidden" : undefined,
+          })}
+        >
+          {card.lo === null || card.hi === null
+            ? "–"
+            : `${speed.say(card.lo)}–${speed.say(card.hi)}`}{" "}
+          <span className={s.small()}>{speed.unit}</span>
         </span>
-      )}
-      <span className={s.range()}>
-        {card.lo === null || card.hi === null
-          ? "–"
-          : `${speed.say(card.lo)}–${speed.say(card.hi)}`}{" "}
-        <span className={s.small()}>{speed.unit}</span>
       </span>
       <svg
         className={s.spark()}
@@ -1671,6 +1791,8 @@ function Graph({
   onFocus,
   backToNow,
   scrollTo,
+  follow,
+  pinnedAt,
   opening,
   dark,
   rider,
@@ -1699,6 +1821,10 @@ function Graph({
   /** Changes when the top of the page lets go of the hour picked here. */
   backToNow: number;
   scrollTo: WeekMove | null;
+  /** An hour picked on the time slider, or now: read out and kept in view. */
+  follow: HourMove | null;
+  /** Where what holds to the top of the screen holds: under the pinned bar. */
+  pinnedAt: number;
   /** The row the address opens on (`?at=`), held as a pointer would hold it. */
   opening: number | null;
   /**
@@ -1801,13 +1927,8 @@ function Graph({
   // The hours start where the wind does: the first hour any model has, or
   // now if that is still to come. Today's earlier hours have no forecast
   // to draw, and a blank stretch is not worth a scroll.
-  const firstWind = rows.find((r) => r.hour.wind)?.time ?? null;
   const dayStart = days[0]?.midnight ?? now;
-  const nowHour = rowAt(rows, now)?.time ?? now;
-  const start =
-    firstWind === null
-      ? dayStart
-      : Math.max(dayStart, Math.min(firstWind, nowHour));
+  const start = weekStart(rows, dayStart, now);
   const end = (days.at(-1)?.midnight ?? now) + 24 * HOUR;
   // The graph's timeline: the days end to end, or with the night hidden
   // each day's lit hours alone, the days joined side by side
@@ -2241,6 +2362,36 @@ function Graph({
     if (phone) for (const el of scrollers()) el.scrollLeft = leftFor(X(now));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backToNow]);
+  // An hour picked on the time slider: read out here, and kept in view (on a
+  // phone, under the playhead); an hour held stays held, at the new hour.
+  // Now lets go, and goes back to now, as Home does.
+  useEffect(() => {
+    const el = ref.current;
+    if (!follow || !el) return;
+    driver.current = el;
+    handMoved.current = false;
+    if (follow.time === null) {
+      release();
+      const left = phone ? leftFor(X(now)) : Math.max(0, X(now) - px);
+      for (const other of scrollers()) other.scrollLeft = left;
+      return;
+    }
+    const row = rowIndexAt(rows, follow.time);
+    if (row === null) return;
+    if (pinned !== null) setPinned(row);
+    setHover(row);
+    if (phone) {
+      el.scrollLeft = Math.max(0, leftFor(mid(rows[row])));
+      return;
+    }
+    const x = X(rows[row].time);
+    const w = rows[row].step * px;
+    const margin = Math.min(120, width / 5);
+    if (x < el.scrollLeft + margin) el.scrollLeft = Math.max(0, x - margin);
+    else if (x + w > el.scrollLeft + width - margin)
+      el.scrollLeft = x + w - width + margin;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [follow]);
   // Now, or with the night left out and now in it, the next first light.
   const nowRow = useMemo(() => {
     const row = rowAt(rows, now);
@@ -2972,7 +3123,7 @@ function Graph({
   };
   /** The days along the head of a section's graph, on its hours. */
   const dayHeads = (at: Section) => (
-    <div className={s.dayHeads()}>
+    <div className={s.dayHeads()} style={{ top: pinnedAt }}>
       <div
         className={s.headCover({
           className: folded && "-translate-x-full",

@@ -1507,3 +1507,30 @@ change: the wind's and the waves' "<model> from here" lines and the Wave
 blend's "<model> ends" marks are gone, and each model's line simply stops
 where its run does. This replaces the dotted run-end mark of 2026-11-04 and
 the reason in the wave stars' label of the entry above.
+
+**2026-11-15 — The spot page's day and hour pinned at the top.** The owner
+approved a redesign of the spot page that keeps its stacked Wind and Waves
+graphs on one timeline, their figures, the days ahead, the loupe on the
+picture and the warnings below the data, and adds a dashboard's navigation,
+cards, filters and motion. It comes in four steps; this is the first. The
+day cards and a time slider sit in a bar that stays pinned under the site's
+bar as the page scrolls through the forecast (the site's bar stays at the top
+of a spot's page for it), on a phone as on a desktop. The slider is a ruler
+of the week's hours, a tick an hour (a three-hour row further out is three
+ticks wide), each with a small bar for its wind, in the stars' pink where the
+hour has stars, grey where it has none; the nights are shaded, the hours
+after dark left out where the rider hides them, and a day's first hour has a
+taller mark. A needle stands still in its middle, the hour over it on a tag
+("Now", "Mon 13:00"), and the hours move under it: a drag, a swipe, a wheel,
+a tap on an hour or the keys (an hour, a day with Shift or Page Up and Down,
+Home back to now) choose the page's hour. It is the one hour the page already
+had: the graphs' cursor and a phone's playhead go to it and the graphs scroll
+to keep it in view, and the picture's loupe reads it. An hour chosen anywhere
+else (the pointer on a graph, a held hour, a day card, Now) moves the slider
+to it, gliding there when it is far. The day cards are smaller to stay
+pinned: the name, then the best stars and the wind's range on one line (the
+stars alone on a phone), then the day's curve along the foot. The card of
+the day the chosen hour falls in is filled in ink, replacing the capsule on
+its name of 2026-11-09; the outline round the days the graph shows stays.
+The graphs' day names hold under the pinned bar, and what the page scrolls
+into view lands under it.

@@ -1,7 +1,7 @@
 /**
  * A riding place's own page, at /spot/<id>: the spot report
- * (report/SpotReport.tsx), with its warnings and notices (Notices.tsx) above
- * the cards. `src/main.tsx` lazy-loads it, so it never carries the map,
+ * (report/SpotReport.tsx), with its warnings and notices (Notices.tsx) under
+ * the wind and the waves. `src/main.tsx` lazy-loads it, so it never carries the map,
  * MapLibre or the other sections; it reads the published forecast through
  * the MCP server's own reduction, so the page and an agent can never be told
  * two different forecasts.

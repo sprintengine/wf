@@ -1,13 +1,14 @@
 /**
- * The spot page's warnings and notices, one thin line each above the week: Met
- * Éireann's weather warnings (./Warnings.tsx), then the EPA's bathing water
- * notices (./WaterQuality.tsx), under one sentence-case label, with the two
- * sources sharing a line of small print underneath. Nothing with neither.
+ * The spot page's warnings and notices, one thin line each under the wind and
+ * the waves (riders open the page for the forecast; the hours a warning
+ * touches carry its mark there): Met Éireann's weather warnings
+ * (./Warnings.tsx), then the EPA's bathing water notices (./WaterQuality.tsx),
+ * under one sentence-case label, with the two sources sharing a line of small
+ * print underneath. Nothing with neither.
  *
- * A stormy day can bring four or five, and the forecast they bear on must
- * still start on the first screen (issue 219): every one that takes the
- * stars is shown, the others until two are, and the rest open from a
- * "more" under them.
+ * A stormy day can bring four or five, and they should not bury what follows:
+ * every one that takes the stars is shown, the others until two are, and the
+ * rest open from a "more" under them.
  */
 import { useState } from "react";
 import { MET_WARNINGS_PAGE } from "../../force5/src/warnings";

@@ -52,42 +52,63 @@ const latitude = (y: number) =>
 /** How many cells the picture's edge fades over. */
 const FEATHER = 4;
 
-/** The picture of a grid, `scale` pixels to a cell each way. */
-export function gridLayout(grid: Grid, scale = 2): GridLayout {
+/**
+ * A box of the map to picture a grid over, and the picture's size: the view
+ * and a margin round it, say, rather than the grid's own extent.
+ */
+export interface GridBox {
+  west: number;
+  east: number;
+  north: number;
+  south: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * The picture of a grid, `scale` pixels to a cell each way; or, given a
+ * `box`, of that box at its own size, where every pixel off the grid is past
+ * its feathered edge.
+ */
+export function gridLayout(grid: Grid, scale = 2, box?: GridBox): GridLayout {
   const w = grid.width;
-  const width = Math.max(2, Math.round(w * scale));
-  const yN = mercator(grid.north);
-  const yS = mercator(grid.south);
+  const yGridN = mercator(grid.north);
+  const yGridS = mercator(grid.south);
   // As many rows as the finest cell (the southern, in Mercator) needs.
-  const finest = mercator(grid.south + grid.dy) - yS;
-  const height = Math.max(2, Math.ceil(((yN - yS) / finest + 1) * scale));
+  const finest = mercator(grid.south + grid.dy) - yGridS;
+  const { west, east, north, south } = box ?? grid;
+  const width = box ? box.width : Math.max(2, Math.round(w * scale));
+  const height = box
+    ? box.height
+    : Math.max(2, Math.ceil(((yGridN - yGridS) / finest + 1) * scale));
+  const yN = mercator(north);
+  const yS = mercator(south);
   const y0 = new Int32Array(height);
   const y1 = new Int32Array(height);
   const ty = new Float32Array(height);
   const edgeY = new Float32Array(height);
   for (let row = 0; row < height; row++) {
     const lat = latitude(yN + ((yS - yN) * (row + 0.5)) / height);
-    const fy = Math.min(
-      grid.height - 1,
-      Math.max(0, (grid.north - lat) / grid.dy),
-    );
+    const at = (grid.north - lat) / grid.dy;
+    const fy = Math.min(grid.height - 1, Math.max(0, at));
     y0[row] = Math.floor(fy);
     y1[row] = Math.min(grid.height - 1, y0[row] + 1);
     ty[row] = fy - y0[row];
-    edgeY[row] = Math.min(1, Math.min(fy, grid.height - 1 - fy) / FEATHER);
+    edgeY[row] = Math.min(1, Math.min(at, grid.height - 1 - at) / FEATHER);
   }
   const x0 = new Int32Array(width);
   const x1 = new Int32Array(width);
   const tx = new Float32Array(width);
   const edgeX = new Float32Array(width);
   for (let col = 0; col < width; col++) {
-    const fx = ((col + 0.5) / width) * (w - 1);
+    const lng = west + ((east - west) * (col + 0.5)) / width;
+    const at = ((lng - grid.west) / (grid.east - grid.west)) * (w - 1);
+    const fx = Math.min(w - 1, Math.max(0, at));
     x0[col] = Math.floor(fx);
     x1[col] = Math.min(w - 1, x0[col] + 1);
     tx[col] = fx - x0[col];
-    edgeX[col] = Math.min(1, Math.min(fx, w - 1 - fx) / FEATHER);
+    edgeX[col] = Math.min(1, Math.min(at, w - 1 - at) / FEATHER);
   }
-  const { west, east, north, south } = grid;
   return {
     width,
     height,

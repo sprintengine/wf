@@ -514,10 +514,10 @@ function WeatherPart({ on, line }: { on: boolean; line: string | null }) {
       <p>
         From DWD&rsquo;s ICON-EU model: about 6.5 km, its total cloud and its
         rain in each hour, out to about three days from its run; past that from
-        NOAA&rsquo;s GFS, on a coarser quarter-degree grid, hourly to five
-        days and in three-hour steps after. Past the last of them the map draws no sky, and
-        the legend says how far it goes. Dry is left clear of blue. At a
-        three-hour column the sky and the rain are the mean of its hours. A
+        NOAA&rsquo;s GFS, on a coarser quarter-degree grid, hourly to five days
+        and in three-hour steps after. Past the last of them the map draws no
+        sky, and the legend says how far it goes. Dry is left clear of blue. At
+        a three-hour column the sky and the rain are the mean of its hours. A
         shower a few kilometres across can be missed or put in the wrong place.
       </p>
       <p className="ip-small">
@@ -557,7 +557,9 @@ function WavesPart({
         From the Marine Institute&rsquo;s Irish Shelf SWAN wave model: the
         significant wave height (the mean of the highest third of the waves) on
         a grid of about 2.8 km over the sea round Ireland, every three hours. An
-        hour between two of them shows the nearer; the land is left clear. Close
+        hour between two of them shows the nearer; the land is left clear. Where
+        the model leaves the water by the shore unsolved, the nearest of its
+        cells is carried in, up to 8 km, so the colour reaches the coast. Close
         in, in a bay or behind a headland, the sea can be calmer or rougher than
         a cell of the grid says.
       </p>

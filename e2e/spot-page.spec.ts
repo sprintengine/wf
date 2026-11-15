@@ -158,15 +158,15 @@ test("the label beside the pointer names the row under it, the hour first", asyn
   const card = page.locator('[data-card="wind"]');
   const x = box.x + box.width * 0.6;
   // The bands of WIND_BANDS: the wind's figures, the models, the tide.
-  await page.mouse.move(x, svg.y + 150);
+  await page.mouse.move(x, svg.y + 163);
   await expect(card).toHaveAttribute("data-card-band", "dir");
   await expect(card.locator("[data-card-hour]")).toHaveText(/\d{2}:\d{2}/);
   await expect(card).toContainText("Gust factor");
   await expect(card).not.toContainText("Wind blend");
-  await page.mouse.move(x, svg.y + 200);
+  await page.mouse.move(x, svg.y + 213);
   await expect(card).toHaveAttribute("data-card-band", "blend");
   await expect(card.locator("[data-card-model]").first()).toBeVisible();
-  await page.mouse.move(x, svg.y + 340);
+  await page.mouse.move(x, svg.y + 353);
   await expect(card).toHaveAttribute("data-card-band", "tide");
   await expect(card).toContainText(/\d\.\d m/);
 });
@@ -348,7 +348,7 @@ for (const width of [1440, 390])
     };
     await expect(svg).toBeVisible({ timeout: 30000 });
     await openKey();
-    // Round the clock by default: the night shaded and hatched, and said in
+    // Round the clock by default: the night shaded and dimmed, and said in
     // the key.
     await expect(svg.locator("[data-night]").first()).toBeAttached();
     await expect(legend).toContainText("Dark");
@@ -1325,11 +1325,28 @@ test.describe("on a phone, the week graph", () => {
     // No bar of readings: the tag is the hour first, then the row's wind.
     await expect(page.locator("[data-readout]")).toHaveCount(0);
     const tag = page.locator('[data-cursor-tag="wind"]');
-    await expect(tag).toHaveText(/^Now · \d+( g\d+)? kn$/);
+    await expect(tag).toHaveText(/^Now · (★[0-5] · )?\d+( g\d+)? kn$/);
     await page
       .locator("[data-spot-graph]")
       .evaluate((el) => (el.scrollLeft += 400));
-    await expect(tag).toHaveText(/^\w{3} \d{2}:\d{2} · \d+( g\d+)? kn$/);
+    await expect(tag).toHaveText(
+      /^\w{3} \d{2}:\d{2} · (★[0-5] · )?\d+( g\d+)? kn$/,
+    );
+    // Each hour's stars are five pips up its column, as many lit as it has.
+    const pips = await page
+      .locator("[data-spot-graph] g[data-stars]")
+      .evaluateAll((hours) =>
+        hours.map((g) => ({
+          stars: Number(g.getAttribute("data-stars")),
+          pips: g.querySelectorAll("rect").length,
+          lit: g.querySelectorAll("rect:not(.fill-line)").length,
+        })),
+      );
+    expect(pips.length).toBeGreaterThan(0);
+    for (const hour of pips) {
+      expect(hour.pips).toBe(5);
+      expect(hour.lit).toBe(hour.stars);
+    }
     // The tide's row brought up the screen, then a tap on it.
     const svg = page.locator("[data-graph-svg]");
     await page.evaluate(

@@ -305,7 +305,7 @@ const styles = tv({
     hourLabelQuiet: "font-normal text-ink-2",
     hourLabelModel: "flex items-center gap-1.5",
     sky: "pointer-events-none absolute left-0 flex items-center gap-1 rounded-control font-body text-caption text-ink-2",
-    skyNight: "halo-text",
+    skyNight: "halo-text opacity-50",
     // The key under the graph: its groups in a row, each a small heading
     // over its marks, every mark drawn at one size; two to a row on a phone.
     legend: [
@@ -371,6 +371,49 @@ const WAVE_STAR_FILL = [
   "fill-wave-stars-4",
   "fill-wave-stars-5",
 ];
+
+/** A pip's height and the gap over it, in the graph's stars bands. */
+const PIP = 3;
+const PIP_GAP = 1.5;
+/** Five pips stacked, the height of a stars band in the graph. */
+const PIPS_HEIGHT = 5 * PIP + 4 * PIP_GAP;
+
+/**
+ * An hour's stars in the graph: five pips stacked up its column, as many lit
+ * from the bottom as it has stars, so the count is read without a key and
+ * without telling one colour from the next.
+ */
+function Pips({
+  x,
+  y,
+  width,
+  n,
+  lit,
+  ...rest
+}: {
+  x: number;
+  y: number;
+  width: number;
+  n: number;
+  /** The fill of a lit pip: the stars' pink, or the wave stars' green. */
+  lit: string;
+} & React.SVGProps<SVGGElement>) {
+  return (
+    <g {...rest}>
+      {[0, 1, 2, 3, 4].map((k) => (
+        <rect
+          key={k}
+          x={x}
+          y={y + (4 - k) * (PIP + PIP_GAP)}
+          width={width}
+          height={PIP}
+          rx={1}
+          className={k < n ? lit : "fill-line"}
+        />
+      ))}
+    </g>
+  );
+}
 
 /**
  * The star rating, as stars: filled in the rating's colour, the rest faint;
@@ -1465,7 +1508,7 @@ function DayButton({
  * so the wind band starts where it always does.
  */
 const WIND_BANDS = [
-  ["stars", 8, 8],
+  ["stars", PIPS_HEIGHT, 8],
   ["wind", 96, 6],
   ["dir", 40, 8],
   ["blend", 44, 10],
@@ -1487,7 +1530,7 @@ const WIND_NAME: Record<WindBand, string> = {
 };
 
 /**
- * The waves' bands: the wave stars as a strip in their green, as the wind's
+ * The waves' bands: the wave stars as pips in their green, as the wind's
  * stars head the Wind section (force5/src/waveStars.ts), the blended height
  * with the models' spread, where the
  * sea comes from with its height, its peak period, every wave model's own
@@ -1495,7 +1538,7 @@ const WIND_NAME: Record<WindBand, string> = {
  * only where the lead model has it somewhere in the week.
  */
 const WAVE_BANDS = [
-  ["wstars", 8, 8],
+  ["wstars", PIPS_HEIGHT, 8],
   ["waves", 92, 12],
   ["wdir", 40, 4],
   ["period", 18, 14],
@@ -2330,8 +2373,24 @@ function Graph({
       : `${dayNames(dublinDate(tagRow.time), tagRow.time).short} ${clock(tagRow.time)}`
     : "";
   const waveAt = waves && shownAt >= 0 ? waves.rows[shownAt] : null;
-  /** A phone's tag says the row's reading after its hour: the wind or the waves. */
+  /**
+   * A phone's tag says the row's reading after its hour: its stars, then the
+   * wind or the waves.
+   */
   const tagReading = (at: Section, r: SpotRow): string => {
+    const n = !r.hour.daylight
+      ? undefined
+      : at === "waves"
+        ? waveRated[rows.indexOf(r)]?.stars
+        : rated
+          ? r.rating?.stars
+          : undefined;
+    const reading = tagFigures(at, r);
+    return n === undefined
+      ? reading
+      : [`★${n}`, reading].filter(Boolean).join(" · ");
+  };
+  const tagFigures = (at: Section, r: SpotRow): string => {
     if (at === "waves") {
       const w = waves?.rows[rows.indexOf(r)];
       if (!w || w.heightM === null) return "";
@@ -2344,33 +2403,11 @@ function Graph({
     const gusting = speed.gust(kn, raw);
     return `${speed.say(kn)}${gusting !== null ? ` g${speed.say(gusting)}` : ""} ${speed.unit}`.trim();
   };
-  /** The night shaded and hatched, the day lines and the hours along a section's foot. */
-  const hatch = phone ? 6 : 8;
+  /** The night shaded, the day lines and the hours along a section's foot. */
   const frame = (height: number, axis: number, data: boolean) => (
     <>
-      <defs>
-        {/* Parallel lines rising to the right, faint, at the Night key's
-            spacing: drawn with the night, under everything else. */}
-        <pattern
-          id={`night-hatch-${data ? "wind" : "waves"}`}
-          width={hatch}
-          height={hatch}
-          patternUnits="userSpaceOnUse"
-          patternTransform="rotate(45)"
-        >
-          <line
-            x1={hatch / 2}
-            x2={hatch / 2}
-            y1={0}
-            y2={hatch}
-            className="stroke-night-hatch"
-            strokeWidth={1}
-          />
-        </pattern>
-      </defs>
-      {/* The night, shaded and hatched each side of a day's light; with the
-          night left out, none of it, and the line between two days is where
-          it was. */}
+      {/* The night, shaded each side of a day's light; with the night left
+          out, none of it, and the line between two days is where it was. */}
       {days.map(({ sun, midnight }, i) => (
         <g key={i}>
           {!dark &&
@@ -2383,13 +2420,6 @@ function Graph({
                   height={height - 22}
                   className="fill-night"
                   data-night={data || undefined}
-                />
-                <rect
-                  x={X(from)}
-                  y={0}
-                  width={X(to) - X(from)}
-                  height={height - 22}
-                  fill={`url(#night-hatch-${data ? "wind" : "waves"})`}
                 />
               </g>
             ))}
@@ -2431,6 +2461,27 @@ function Graph({
         ))}
     </>
   );
+  /**
+   * The night again, over a section's lines and figures: the card's own
+   * ground laid half over them, so the hours nobody rides at sit back and
+   * the day's stand out.
+   */
+  const nightOver = (height: number) =>
+    !dark &&
+    days.flatMap(({ sun, midnight }) =>
+      nightSpans(sun, midnight).map(([from, to]) => (
+        <rect
+          key={from}
+          x={X(from)}
+          y={0}
+          width={X(to) - X(from)}
+          height={height - 22}
+          className="pointer-events-none fill-sunken"
+          fillOpacity={0.55}
+          data-night-over
+        />
+      )),
+    );
   /**
    * Where the hour read out prints a figure, on a section's rows: its cursor
    * line breaks there, so it never strikes through the figure it points to.
@@ -3105,14 +3156,14 @@ function Graph({
                   // Only where there are stars: an hour rated none says so in its
                   // label, not with a grey dash the length of the night.
                   r.rating?.stars && seen(r) ? (
-                    <rect
+                    <Pips
                       key={i}
-                      x={X(r.time) + 1}
+                      x={X(r.time) + 2}
                       y={ROW.stars[0]}
-                      width={r.step * px - 2}
-                      height={ROW.stars[1]}
-                      rx={2}
-                      className={STAR_FILL[r.rating.stars]}
+                      width={r.step * px - 4}
+                      n={r.rating.stars}
+                      lit="fill-stars-4"
+                      data-stars={r.rating.stars}
                     />
                   ) : null,
                 )}
@@ -3339,6 +3390,7 @@ function Graph({
                   units={units}
                   whole={whole}
                 />
+                {nightOver(GH)}
                 {marks("wind", ay)}
                 {hoverRow?.hour.wind && (
                   <circle
@@ -3454,6 +3506,7 @@ function Graph({
                     halo={halo}
                     pointed={card?.section === "waves" ? card.band : null}
                   />
+                  {nightOver(waveStack.height)}
                   {marks("waves", waveStack.axis)}
                 </svg>
                 {railMarks("waves")}
@@ -4023,7 +4076,7 @@ function LowerBands({
   px: number;
   W: number;
   hover: number | null;
-  /** The class that keeps a figure clear of the night's hatch at its time. */
+  /** The class that keeps a figure clear of the night's shade at its time. */
   halo: (t: number) => string;
   models: readonly ModelSeries[];
   blend: ReadonlyMap<number, WindBlendAt>;
@@ -4339,7 +4392,7 @@ function WaveBands({
   hover: number | null;
   /** Whether figures `half` either side of `x` escape being cut by the window. */
   whole: (x: number, half: number) => boolean;
-  /** The class that keeps a figure clear of the night's hatch at its time. */
+  /** The class that keeps a figure clear of the night's shade at its time. */
   halo: (t: number) => string;
   /** The row under the pointer: over a swell, the other swells fade. */
   pointed: string | null;
@@ -4530,21 +4583,20 @@ function WaveBands({
         })()}
       {bands.wstars &&
         (() => {
-          const [y, h] = bands.wstars;
-          // Only where there are stars, as the wind's strip.
+          const [y] = bands.wstars;
+          // Only where there are stars, as the wind's pips.
           return (
             <g data-band="wstars">
               {rows.map((r, i) => {
                 const n = rated[i]?.stars ?? 0;
                 return n && seen(r) ? (
-                  <rect
+                  <Pips
                     key={i}
-                    x={X(r.time) + 1}
+                    x={X(r.time) + 2}
                     y={y}
-                    width={r.step * px - 2}
-                    height={h}
-                    rx={2}
-                    className={WAVE_STAR_FILL[n]}
+                    width={r.step * px - 4}
+                    n={n}
+                    lit="fill-wave-stars-4"
                     data-wave-stars={n}
                   />
                 ) : null;

@@ -93,7 +93,7 @@ test("over a section's Models row, the label lists that section's models and ble
   const windGraph = page.locator("[data-spot-graph]");
   await windGraph.scrollIntoViewIfNeeded();
   const windBox = (await windGraph.boundingBox())!;
-  await page.mouse.move(windBox.x + windBox.width * 0.15, windBox.y + 200);
+  await page.mouse.move(windBox.x + windBox.width * 0.15, windBox.y + 213);
   const windCard = page.locator('[data-card="wind"]');
   await expect(windCard).toBeVisible();
   await expect(windCard).toContainText("HARMONIE");
@@ -106,7 +106,7 @@ test("over a section's Models row, the label lists that section's models and ble
   const waveGraph = page.locator("[data-wave-graph]");
   await waveGraph.scrollIntoViewIfNeeded();
   const waveBox = (await waveGraph.boundingBox())!;
-  await page.mouse.move(waveBox.x + waveBox.width * 0.4, waveBox.y + 210);
+  await page.mouse.move(waveBox.x + waveBox.width * 0.4, waveBox.y + 223);
   const waveCard = page.locator('[data-card="waves"]');
   await expect(waveCard).toBeVisible();
   for (const name of ["Met Office", "MI SWAN", "GFS-Wave", "ECMWF", "Blend"])
@@ -120,7 +120,7 @@ test("over a section's Models row, the label lists that section's models and ble
   const over = await tag.textContent();
 
   // A click holds the hour; the arrow keys step it.
-  await page.mouse.click(waveBox.x + waveBox.width * 0.4, waveBox.y + 210);
+  await page.mouse.click(waveBox.x + waveBox.width * 0.4, waveBox.y + 223);
   await page.mouse.move(waveBox.x + waveBox.width + 40, waveBox.y - 40);
   await expect(tag).toHaveText(over!);
   await waveGraph.focus();
@@ -199,7 +199,7 @@ test("with no wave blend published, each model's line and the leading model alon
   const graph = page.locator("[data-wave-graph]");
   await graph.scrollIntoViewIfNeeded();
   const box = (await graph.boundingBox())!;
-  await page.mouse.move(box.x + box.width * 0.4, box.y + 210);
+  await page.mouse.move(box.x + box.width * 0.4, box.y + 223);
   const card = page.locator('[data-card="waves"]');
   await expect(card).toContainText("MI SWAN");
   await expect(card).not.toContainText("Blend");
@@ -339,7 +339,7 @@ test("a rider's ECMWF leads to its end: no flipping between its steps, and a val
   const box = (await graph.boundingBox())!;
   const card = page.locator('[data-card="waves"]');
   for (let i = 0; i < 6; i++) {
-    await page.mouse.move(box.x + 300 + i * 28, box.y + 210);
+    await page.mouse.move(box.x + 300 + i * 28, box.y + 223);
     await expect(card).toBeVisible();
     await expect(card.locator('[data-card-model="ecmwf-wave"]')).toContainText(
       /( ft|under 1 ft)/,
@@ -392,10 +392,10 @@ test.describe("on a phone", () => {
     await expect(page.locator("[data-readout]")).toHaveCount(0);
     // The wind on the wind's graph, the waves on the waves', never each other's.
     await expect(page.locator('[data-cursor-tag="wind"]')).toHaveText(
-      /^Now · \d+( g\d+)? kn$/,
+      /^Now · (★[0-5] · )?\d+( g\d+)? kn$/,
     );
     await expect(page.locator('[data-cursor-tag="waves"]')).toHaveText(
-      /^Now · (under )?\d* ?ft/,
+      /^Now · (★[0-5] · )?(under )?\d* ?ft/,
     );
     // The hours scroll as one: dragging the waves moves the wind.
     await page

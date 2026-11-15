@@ -208,12 +208,29 @@ test("the pills say what the map shows: the wind and the sky, then Wind, Waves o
   // None on: the arrow, the wind with its unit, and the sky after it.
   await expect(first.locator(".lt-u")).toHaveText("kn");
   await expect(first.locator(".lt-pill > :last-child")).toHaveClass(/lt-sky/);
-  // Wind: the arrow, the wind and the gust raised, no unit, no sky.
+  // Wind: the arrow, the wind with its unit and the gust raised, no sky.
   await page.locator('[data-map-field="wind"]').click();
-  await expect(first.locator(".lt-u")).toHaveCount(0);
+  await expect(first.locator(".lt-u")).toHaveText("kn");
   await expect(first.locator(".lt-sky")).toHaveCount(0);
   await expect(first.locator(".lt-pa")).toHaveCount(1);
   await expect(first.locator(".lt-kn")).toHaveText(/^\d+$/);
+  // Filled in its stars' colour, not the neutral dark (src/map.css).
+  await expect(first).toHaveClass(/\bs[1-5]\b.*\blt-tint\b/);
+  const neutral = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.background = "var(--map-pill)";
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return colour;
+  });
+  await expect
+    .poll(() =>
+      first
+        .locator(".lt-pill")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+    )
+    .not.toBe(neutral);
   await rest(page);
   await pillsAreTheCardsInView(page);
   // Weather: the sky first, beside the air's temperature.

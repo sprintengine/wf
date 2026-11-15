@@ -5,16 +5,19 @@
  *
  * - None: an arrow the way the wind blows, the wind with its unit, and the
  *   sky ("↗ 13 kn" and a cloud).
- * - Wind: the arrow, the wind, and the gust raised beside it.
- * - Waves: an arrow the way the sea runs, its height in metres, and its peak
- *   period raised beside it. A spot the open sea's waves do not reach has no
- *   wave pill.
+ * - Wind: the arrow, the wind with its unit, and the gust raised beside it
+ *   ("↗ 13kn ¹⁹").
+ * - Waves: an arrow the way the sea runs, its height with its unit, feet or
+ *   metres, and its peak period raised beside it ("↙ 2ft ⁵s"). A spot the
+ *   open sea's waves do not reach has no wave pill.
  * - Weather: the sky beside the air's temperature, and the rain in the hour
  *   raised beside it while it rains.
  *
- * Neutral, whatever it says: the pill is dark with light words and the stars
- * are on the cards, not the map. The arrow alone may be red, for a wind
- * blowing off the shore. Pure: the field, the reading and the units in, the
+ * Filled in the spot's stars' own colour, pink to purple as the chart's rings
+ * are, where the stars are what the pill speaks for (`tint`): with no field,
+ * Wind or Weather. A wave pill stays neutral, dark with light words: the
+ * stars rate the wind, not the sea. So does a spot with no stars at the hour.
+ * The arrow alone may be red, for a wind blowing off the shore. Pure: the field, the reading and the units in, the
  * parts out, for lights.ts to draw and for a test to read.
  */
 import { skyGlyph, type GlyphDef } from "../../shared/web/glyphSet";
@@ -68,6 +71,8 @@ export interface PillParts {
   unit: string | null;
   /** A second figure, raised and quieter: the gust, the period, the rain. */
   sup: string | null;
+  /** The pill takes its spot's stars' colour (src/map.css `.lt-tint`). */
+  tint: boolean;
 }
 
 /** The rain counted as raining, mm in the hour. */
@@ -104,8 +109,9 @@ export function pillContent(
       arrow: r.sea ? going(r.sea.direction) : null,
       sky: null,
       figure: r.sea ? waveFigure(r.sea.height, waveUnits) : "–",
-      unit: null,
+      unit: r.sea ? waveUnits : null,
       sup: r.sea?.period == null ? null : `${Math.round(r.sea.period)}s`,
+      tint: false,
     };
   }
   if (field === "weather") {
@@ -116,26 +122,30 @@ export function pillContent(
       figure: r.air === null ? "–" : `${Math.round(r.air)}°`,
       unit: null,
       sup: raining ? r.rain!.toFixed(1) : null,
+      tint: true,
     };
   }
+  // Force is said with its figure ("F4"), and needs no unit after it.
+  const unit = units === "bft" || r.windKn === null ? null : unitLabel(units);
   if (field === "wind")
     return {
       arrow: r.windKn === null ? null : going(r.from),
       sky: null,
       figure: wind,
-      unit: null,
+      unit,
       sup:
         r.windKn === null || r.gustKn === null
           ? null
           : speedShort(r.gustKn, units),
+      tint: true,
     };
   return {
     arrow: r.windKn === null ? null : going(r.from),
     sky: skyOf(r, false),
     figure: wind,
-    // Force is said with its figure ("F4"), and needs no unit after it.
-    unit: units === "bft" || r.windKn === null ? null : unitLabel(units),
+    unit,
     sup: null,
+    tint: true,
   };
 }
 
@@ -143,7 +153,7 @@ export function pillContent(
 export const pillKey = (p: PillParts | null) =>
   p === null
     ? ""
-    : `${p.arrow ?? ""}|${p.sky ? `${p.sky.icon},${p.sky.dark},${p.sky.first}` : ""}|${p.figure}|${p.unit ?? ""}|${p.sup ?? ""}`;
+    : `${p.arrow ?? ""}|${p.sky ? `${p.sky.icon},${p.sky.dark},${p.sky.first}` : ""}|${p.figure}|${p.unit ?? ""}|${p.sup ?? ""}|${p.tint}`;
 
 /** The pill's arrow, pointing up, in a 12-unit box about its centre. */
 export const PILL_ARROW = "M0 4.6V-4.4M-2.7 -1.6L0 -4.8L2.7 -1.6";

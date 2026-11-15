@@ -800,6 +800,63 @@
   border-top: 0;
   border-right: 0;
 }
+/* A pill in its stars' colour (force5/src/pillContent.ts `tint`): the chart's
+   rings' pink to purple, one star to five (--color-stars-1…5), edged a step
+   deeper, its words in ink on the two pinks and in paper on the three
+   purples, as the rings' figures are. With no stars, after dark, or saying
+   the sea, it stays neutral. Under the pointer it still turns light. */
+.map-canvas.is-plain .lt.lt-tint.s1 {
+  --tint: var(--color-stars-1);
+  --tint-edge: var(--color-stars-2);
+  --tint-ink: var(--color-ink);
+}
+.map-canvas.is-plain .lt.lt-tint.s2 {
+  --tint: var(--color-stars-2);
+  --tint-edge: var(--color-stars-3);
+  --tint-ink: var(--color-ink);
+}
+.map-canvas.is-plain .lt.lt-tint.s3 {
+  --tint: var(--color-stars-3);
+  --tint-edge: var(--color-stars-4);
+  --tint-ink: var(--color-ground);
+}
+.map-canvas.is-plain .lt.lt-tint.s4 {
+  --tint: var(--color-stars-4);
+  --tint-edge: var(--color-stars-5);
+  --tint-ink: var(--color-ground);
+}
+.map-canvas.is-plain .lt.lt-tint.s5 {
+  --tint: var(--color-stars-5);
+  --tint-edge: var(--color-ink);
+  --tint-ink: var(--color-ground);
+}
+.map-canvas.is-plain
+  .lt.lt-tint:is(.s1, .s2, .s3, .s4, .s5):not(.lit, .sel, :focus-visible)
+  .lt-pill {
+  background: var(--tint);
+  border-color: var(--tint-edge);
+  color: var(--tint-ink);
+}
+.map-canvas.is-plain
+  .lt.lt-tint:is(.s1, .s2, .s3, .s4, .s5):not(.lit, .sel, :focus-visible)
+  .lt-pill[data-n]::after {
+  border-color: var(--tint-edge);
+}
+.map-canvas.is-plain
+  .lt.lt-tint:is(.s1, .s2, .s3, .s4, .s5):not(.lit, .sel, :focus-visible)
+  :is(.lt-u, .lt-gu) {
+  color: color-mix(in srgb, var(--tint-ink) 80%, var(--tint));
+}
+/* A cross-offshore hour keeps stars, and its red arrow would sink into the
+   pink: it stands on a disc of the neutral pill's dark, as the canvas draws
+   it through a move (force5/src/lightsCanvas.ts). */
+.map-canvas.is-plain
+  .lt.lt-tint.xoff:is(.s1, .s2, .s3, .s4, .s5):not(.lit, .sel, :focus-visible)
+  .lt-pa {
+  border-radius: 50%;
+  background: var(--map-pill);
+  box-shadow: 0 0 0 1.5px var(--map-pill);
+}
 /* Under the pointer, the keys, or its card: the pill turns light, with dark
    words, in either theme, and stands over the rest. No ring, no growth. */
 .map-canvas.is-plain .lt:is(.lit, .sel),

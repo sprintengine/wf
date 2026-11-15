@@ -28,6 +28,7 @@ describe("with no field on", () => {
       figure: "13",
       unit: "kn",
       sup: null,
+      tint: true,
     });
   });
 
@@ -65,19 +66,29 @@ describe("with no field on", () => {
       figure: "–",
       unit: null,
       sup: null,
+      tint: true,
     });
   });
 });
 
 describe("with Wind on", () => {
-  it("is the arrow, the wind and the gust raised", () => {
+  it("is the arrow, the wind with its unit and the gust raised", () => {
     expect(pillContent("wind", reading(), "kn")).toEqual({
       arrow: 45,
       sky: null,
       figure: "13",
-      unit: null,
+      unit: "kn",
       sup: "20",
+      tint: true,
     });
+  });
+
+  it("says the rider's units, and Force with none after it", () => {
+    expect(pillContent("wind", reading(), "km/h")).toMatchObject({
+      figure: "24",
+      unit: "km/h",
+    });
+    expect(pillContent("wind", reading(), "bft")?.unit).toBeNull();
   });
 
   it("raises no gust where none is given", () => {
@@ -88,18 +99,22 @@ describe("with Wind on", () => {
 });
 
 describe("with Waves on", () => {
-  it("is the sea's arrow, its height and its period", () => {
+  it("is the sea's arrow, its height with its unit and its period, untinted", () => {
     expect(pillContent("waves", reading(), "kn", "m")).toEqual({
       arrow: 90,
       sky: null,
       figure: "1.2",
-      unit: null,
+      unit: "m",
       sup: "8s",
+      tint: false,
     });
   });
 
   it("is in whole feet by default", () => {
-    expect(pillContent("waves", reading(), "kn")?.figure).toBe("4");
+    expect(pillContent("waves", reading(), "kn")).toMatchObject({
+      figure: "4",
+      unit: "ft",
+    });
   });
 
   it("is no pill at all where the sea's waves do not reach", () => {
@@ -112,6 +127,7 @@ describe("with Waves on", () => {
     expect(pillContent("waves", reading({ sea: null }), "kn")).toMatchObject({
       arrow: null,
       figure: "–",
+      unit: null,
       sup: null,
     });
   });
@@ -125,6 +141,7 @@ describe("with Weather on", () => {
       figure: "12°",
       unit: null,
       sup: null,
+      tint: true,
     });
   });
 

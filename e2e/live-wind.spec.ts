@@ -5,7 +5,7 @@ import { SAMPLE_WEATHER } from "./sample";
 /**
  * The plain map beside the Spot finder's list, and the Live wind layer
  * (force5/src/lights.ts, force5/src/readingPills.ts): each card in view a
- * neutral pill with its wind, and each weather station and buoy a gold-edged
+ * pill in its stars' colour with its wind, and each weather station and buoy a gold-edged
  * tag at the wind it last measured. On by default beside the list, with no
  * card over the map there; on the full chart, a switch in Layers under Wind,
  * off until asked for, with a card under the pointer or a tap.
@@ -51,7 +51,7 @@ async function openHome(page: Page, ids = ["brandon", "dollymount", "keel"]) {
 test.describe("beside the list", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test("each card in view is a neutral pill with its wind, in place of a ring, and keeps its hover and click", async ({
+  test("each card in view is a pill in its stars' colour with its wind, in place of a ring, and keeps its hover and click", async ({
     page,
   }) => {
     await openHome(page);
@@ -60,7 +60,8 @@ test.describe("beside the list", () => {
       0,
       { timeout: 30000 },
     );
-    const fills = new Set<string>();
+    // Each pill's fill, by its stars at the hour (s0 to s5, or dark).
+    const fills = new Map<string, Set<string>>();
     for (const light of await pills(page).all()) {
       await expect(light.locator(".lt-pill")).toBeVisible();
       await expect(light.locator(":scope > svg")).toBeHidden();
@@ -76,14 +77,22 @@ test.describe("beside the list", () => {
       const box = (await light.boundingBox())!;
       expect(box.width).toBeGreaterThan(box.height);
       expect([22, 26]).toContain(Math.round(box.height));
-      fills.add(
-        await light
-          .locator(".lt-pill")
-          .evaluate((el) => getComputedStyle(el).backgroundColor),
-      );
+      const level =
+        (await light.getAttribute("class"))!.match(/\b(s[0-5]|dark)\b/)?.[1] ??
+        "";
+      const fill = await light
+        .locator(".lt-pill")
+        .evaluate((el) => getComputedStyle(el).backgroundColor);
+      fills.set(level, (fills.get(level) ?? new Set()).add(fill));
     }
-    // Neutral, whatever the stars: one dark fill for every pill.
-    expect([...fills]).toEqual(["rgb(12, 12, 14)"]);
+    // One fill for each number of stars: the stars' colour, not the neutral
+    // dark, where it has stars (src/map.css `.lt-tint`).
+    for (const [level, fill] of fills) {
+      expect(fill.size).toBe(1);
+      if (/^s[1-5]$/.test(level))
+        expect([...fill][0]).not.toBe("rgb(12, 12, 14)");
+      else expect([...fill][0]).toBe("rgb(12, 12, 14)");
+    }
     // A card under the pointer lights its pill; a pill pressed opens its spot.
     await cards(page).filter({ hasText: "Keel Beach" }).hover();
     await expect(page.locator('.spot-marker[data-spot-id="keel"]')).toHaveClass(

@@ -55,16 +55,37 @@ const STAR_FILL = [
   "fill-stars-5",
 ] as const;
 
+/**
+ * The wave stars' own colours, a leaf green pale to deep
+ * (ui/theme.css `wave-stars-1` … `wave-stars-5`, force5/src/waveStars.ts).
+ */
+const WAVE_FILL = [
+  "",
+  "fill-wave-stars-1",
+  "fill-wave-stars-2",
+  "fill-wave-stars-3",
+  "fill-wave-stars-4",
+  "fill-wave-stars-5",
+] as const;
+
 /** The chart's star, a five-point at radius 5 round the origin. */
 const STAR =
   "M0,-5 L1.47,-2.02 4.76,-1.55 2.38,0.77 2.94,4.05 0,2.5 -2.94,4.05 -2.38,0.77 -4.76,-1.55 -1.47,-2.02Z";
 
-/** "3 of 5 stars, 4 on the wind alone", or "Dark: not rated". */
-export function starsLabel(stars: number | null, potential?: number): string {
+/**
+ * "3 of 5 stars, 4 on the wind alone", or "Dark: not rated"; the waves'
+ * "3 of 5 wave stars, 4 on the swell alone".
+ */
+export function starsLabel(
+  stars: number | null,
+  potential?: number,
+  waves = false,
+): string {
   if (stars == null) return "Dark: not rated";
   const pot = Math.max(potential ?? stars, stars);
   return (
-    `${stars} of 5 stars` + (pot > stars ? `, ${pot} on the wind alone` : "")
+    `${stars} of 5 ${waves ? "wave stars" : "stars"}` +
+    (pot > stars ? `, ${pot} on the ${waves ? "swell" : "wind"} alone` : "")
   );
 }
 
@@ -91,6 +112,11 @@ export type StarGlyphsProps = VariantProps<typeof starGlyphsStyles> & {
   /** Not a rider's stars (a seller's rating): the solid stars in ink. */
   inked?: boolean;
   /**
+   * The wave stars (force5/src/waveStars.ts), not the wind's: the solid ones
+   * in the wave stars' green, and said as wave stars.
+   */
+  waves?: boolean;
+  /**
    * What a screen reader hears. `starsLabel` by default. An empty string says
    * the words are already beside it (a button that names the day's stars):
    * the stars are then decoration, hidden, not an image with no name.
@@ -107,10 +133,12 @@ export function StarGlyphs({
   tone,
   coloured = false,
   inked = false,
+  waves = false,
   label,
   className,
 }: StarGlyphsProps) {
   const styles = starGlyphsStyles({ tone });
+  const fill = waves ? WAVE_FILL : STAR_FILL;
   // The mockup's 2px at 12px, and 1px at the dock's 10px, where five stars
   // and their gaps must stay inside a 73px column's padding.
   const gap = Math.max(1, Math.floor(size / 6));
@@ -130,7 +158,8 @@ export function StarGlyphs({
         : {
             role: "img",
             "aria-label":
-              label ?? starsLabel(stars, coloured ? undefined : potential),
+              label ??
+              starsLabel(stars, coloured ? undefined : potential, waves),
           })}
     >
       {stars != null &&
@@ -144,7 +173,7 @@ export function StarGlyphs({
                 key={i}
                 className={
                   i < solid
-                    ? `${STAR_FILL[solid]} ${styles.earned()}`
+                    ? `${fill[solid]} ${styles.earned()}`
                     : solid
                       ? styles.rest()
                       : styles.none()
@@ -162,7 +191,7 @@ export function StarGlyphs({
                 className={
                   inked || tone === "inverse"
                     ? styles.solid()
-                    : `${STAR_FILL[solid]} ${styles.earned()}`
+                    : `${fill[solid]} ${styles.earned()}`
                 }
                 d={STAR}
                 transform={`translate(${x} ${y + 0.4}) scale(${k})`}

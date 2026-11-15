@@ -27,6 +27,7 @@ import {
   type WindReading,
 } from "../../force5/src/windObs";
 import { windCss } from "../../force5/src/windCss";
+import { waveStars } from "../../force5/src/waveStars";
 import { spotHref } from "../../force5/src/siteNav";
 import type { Rider } from "../../force5/src/stars";
 import type { Units, WaveUnits } from "../../force5/src/units";
@@ -383,6 +384,7 @@ export function SpotCard(props: SpotCardProps) {
             isToday={isToday}
             units={units}
             waveUnits={waveUnits}
+            facing={spot.facing ?? null}
             onPick={onPick}
           />
         )}
@@ -449,11 +451,21 @@ export function rainCss(mm: number | null | undefined): string {
 
 /** How tall the rain's strip is, under the sky's bar. */
 const RAIN_STRIP = "4px";
+/** How tall the wave stars' strip is, under the waves' bar. */
+const WAVE_STARS_STRIP = "4px";
+
+/**
+ * The wave stars as a strip under the waves' bar (force5/src/waveStars.ts):
+ * nothing with none, then their green, pale to deep, one star to five.
+ */
+export const waveStarsCss = (stars: number | null | undefined) =>
+  stars ? `var(--color-wave-stars-${Math.min(5, stars)})` : "transparent";
 
 /**
  * The day's hours, first light to last, as four bars: the wind in its own
  * colours with its speed every three hours; the waves' height in theirs, with
- * the metres, kept empty on water the open sea's waves do not reach; the sky,
+ * the metres and the wave stars' green as a strip along its foot, kept empty
+ * on water the open sea's waves do not reach; the sky,
  * yellow for a clear sky to grey under cloud, with the air's temperature and
  * the rain as a blue strip along its foot; and the stars in theirs. A notch
  * marks the hour shown, where it is on the row: none for an hour off either
@@ -469,6 +481,7 @@ function DayBars({
   isToday,
   units,
   waveUnits,
+  facing,
   onPick,
 }: {
   day: DayRow;
@@ -478,6 +491,8 @@ function DayBars({
   isToday: boolean;
   units: Units;
   waveUnits: WaveUnits;
+  /** The beach's seaward bearing, for the wave stars. */
+  facing: number | null;
   onPick: (time: number) => void;
 }) {
   const s = cardStyles();
@@ -504,6 +519,23 @@ function DayBars({
     const sea = read(readings.sea, i);
     return sea ? wavesCss(sea.height) : "var(--color-line)";
   });
+  // The wave stars at each hour, for the strip under the waves; the dark at
+  // either end is never rated.
+  const rated = hours.map((h, i) => {
+    const sea = read(readings.sea, i);
+    return sea && !h.dark
+      ? (waveStars({
+          height: sea.height,
+          period: sea.period,
+          direction: sea.direction,
+          windFrom: at(i)?.from ?? null,
+          facing,
+        })?.stars ?? 0)
+      : 0;
+  });
+  const waveLayers = rated.some((n) => n > 0)
+    ? `${gradient((i) => waveStarsCss(rated[i]))} bottom / 100% ${WAVE_STARS_STRIP} no-repeat, ${waves}`
+    : waves;
   const sky = gradient((i) => {
     const cloud = read(readings.cloud, i);
     return cloud === null ? "var(--color-line)" : skyCss(cloud);
@@ -587,9 +619,10 @@ function DayBars({
       ) : (
         <div
           className={s.bar()}
-          style={{ background: waves }}
+          style={{ background: waveLayers }}
           onClick={pick}
           data-bar="waves"
+          data-wave-stars={rated.join(",")}
         >
           {figures((i) => {
             const sea = read(readings.sea, i);

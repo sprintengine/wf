@@ -451,6 +451,46 @@ models' range, and the members' middle 80% is the sea-blue bar on its range
 bar (`hourEnsemble` in `mcp/api/forecast.ts`). With both ensembles retired,
 neither shows.
 
+## Wave stars (15 November 2026)
+
+**The owner's ruling, 15 November 2026: the waves have stars of their own,
+apart from the wind's.** The wind's stars say whether an hour can be ridden on
+a wing, and safely; the wave stars say how good the waves are. Neither ever
+moves the other: an offshore hour can have five wave stars and no wind stars,
+because it can blow a rider out to sea. The logic is
+`force5/src/waveStars.ts`, pure, with its tests beside it.
+
+An hour is rated on the sea the map's pills and the cards read: the total
+sea's significant height, its peak period and where it comes from, from the
+finest wave model that reaches the spot (`handedWaveSource`), with the beach's
+facing (`shoreFacing`) and the wind's direction. The spot page rates its own
+headline sea, the rider's wave model's, the same way. The dark is not rated,
+nor water the open sea's waves do not reach.
+
+The period is what a wave is worth (the owner: "longer period is better"):
+
+| What is checked  | What it does                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Period, whole s  | the stars to start from: under 6 none (chop), 6–7 one, 8 two, 9 three, 10–11 four, 12 and over five                            |
+| Reach            | the swell against the facing: within 45° of straight in, as it is; 45–90°, a star off; past 90°, none (it runs past the beach) |
+| Wind             | offshore or cross-offshore holds the faces up, a star on; onshore or cross-onshore makes them messy, a star off                |
+| Size, whole feet | under 2 ft too small, none; 2 ft three stars at most; from 3 ft any size, however big, may have five                           |
+
+A star on for the wind only lifts a sea that has a star already: chop is
+chop. Where the facing or the swell's direction is not known, neither the
+reach nor the wind moves a star. Like the wind's, two numbers: `potential`,
+the swell alone (period, reach and size), and `stars`, after the wind.
+
+The owner's examples, held in `waveStars.test.ts`: 2 ft at 5 s is none; 3 to
+5 ft at 6 s in an offshore wind is two; a metre at 11 s onto a west-facing
+beach, cross-offshore, is five; 8 ft at 13 s, cross-shore, is five.
+
+They are drawn in their own leaf green, pale to deep, one star to five
+(`--color-wave-stars-1…5`), never the wind's pink nor the sea's height ramp:
+the finder's pills with Waves on, a strip along the foot of a card's Waves
+bar, the phone's peek beside the sea, and a strip heading the spot page's
+Waves section with the stars and the first reason in the hour's label.
+
 ## What would make it better next
 
 1. **Rider feedback.** A "rode it: ★★★" check-in from the community spot card
@@ -460,8 +500,9 @@ neither shows.
    the next 48 hours.
 3. **Per-place knowledge.** Tide windows ("works from mid tide up") and known
    good directions from local riders, as overrides on the computed facing.
-4. **Waves.** A wave-riding session (cross-off with swell) for advanced riders,
-   and a penalty for a heavy shore break for beginners, from the wave rows the
-   dock already has.
+4. **Waves.** The wave stars (above) are ours alone: a rider's own numbers
+   for them in Settings (a "too big" for one), the primary swell's own
+   height and period where the model splits it, and a shore break warning
+   for beginners.
 5. **The forecast server.** `get_spot_forecast` and `find_wind` could return
    the stars, so an assistant can answer "where is it five stars on Saturday".

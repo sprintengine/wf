@@ -932,6 +932,17 @@
   --color-waves-m3: #2a55a3;
   --color-waves-m5: #3b2c8e;
   --color-waves-m8: #27105e;
+  /* The wave stars, one to five (force5/src/waveStars.ts): a leaf green, pale
+     to deep, as the wind's stars are pink to purple, so a wave pill and its
+     card's strip never read as the wind's stars nor as the sea's height (the
+     sea-green to indigo above). Words on the two pale ones are ink, on the
+     three deep ones paper. Re-themed, so five stays the strongest on either
+     ground. */
+  --color-wave-stars-1: #c2e3a0;
+  --color-wave-stars-2: #93c96a;
+  --color-wave-stars-3: #4f9a2e;
+  --color-wave-stars-4: #367a1f;
+  --color-wave-stars-5: #215713;
   /* The sky by its cloud, per cent: the sun's yellow at a clear sky, paling
      through a hazy cream to grey under a full cover. The weather's meaning,
      so, like the weather's marks, it does not re-theme; ink reads on every
@@ -1070,6 +1081,11 @@
   --map-halo: #0c0c0e;
   --map-bead: rgba(242, 242, 244, 0.42);
   --map-bead-halo: rgba(10, 10, 12, 0.55);
+  --color-wave-stars-1: #2b4a1d;
+  --color-wave-stars-2: #3d6b25;
+  --color-wave-stars-3: #5f9e33;
+  --color-wave-stars-4: #86c84a;
+  --color-wave-stars-5: #b6e886;
 }
 
 /* ==== ai =================================================================

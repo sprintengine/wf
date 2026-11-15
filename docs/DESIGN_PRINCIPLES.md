@@ -1482,3 +1482,17 @@ step lighter than the deepest depth tint and greener than any, so a flat sea
 reads as the field's colour, not as the chart with nothing on it. This
 replaces the Waves field's colour ending midway between SWAN's last wet cell
 and its first dry one (2026-11-07).
+
+**2026-11-15 — Wave stars, in their own green.** The owner asked for a way to
+rate the waves, apart from the wind, with "another colour for the waves", and
+picked green. Each daylight hour's sea has wave stars out of five
+(force5/src/waveStars.ts, docs/STAR_RATINGS.md), the period first, never
+moving the wind's stars. They are a leaf green, pale to deep, one star to
+five (`--color-wave-stars-1…5`), kept apart from the wind's pink and from the
+sea's height ramp (sea-green to indigo). With Waves on, a pill on the
+finder's map is filled in its wave stars' green the way a pill is filled in
+the wind's pink (`.lt-wave.ws1…5`), and neutral with none; a card's Waves bar
+carries them as a strip along its foot, as the sky carries the rain; the
+phone's peek gives them after the sea's figures; and the spot page's Waves
+section is headed by their strip, as the Wind section is by the stars, the
+hour's label giving the stars and why.

@@ -292,6 +292,7 @@ function pillReading(
   hour: PlaceHour | undefined,
   read: Readings | undefined,
   at: number,
+  facing: number | null = null,
 ): PillReading {
   return {
     from: hour?.from ?? null,
@@ -303,6 +304,7 @@ function pillReading(
     rain: read?.rain[at] ?? null,
     sea: read?.sea[at] ?? null,
     inland: !!read?.inland,
+    facing,
   };
 }
 /** Room for the chart beside the spot finder's list, as the home page has it. */
@@ -1324,6 +1326,7 @@ export default function App() {
         hour,
         finderReadings.get(spot.id) ?? bestPillReadings.get(spot.id),
         lightAt,
+        spot.facing ?? null,
       );
       out.set(spot.id, {
         pending: !row,
@@ -2925,7 +2928,7 @@ export default function App() {
         ref={kind === "card" ? chartCard : undefined}
         spot={spot}
         hour={hour}
-        reading={pillReading(hour, read, lightAt)}
+        reading={pillReading(hour, read, lightAt, spot.facing ?? null)}
         tides={read?.tides ?? []}
         time={lightColumn ? lightColumn.time : null}
         now={clockNow}

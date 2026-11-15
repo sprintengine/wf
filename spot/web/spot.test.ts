@@ -21,14 +21,11 @@ import {
   goodWindArcs,
   groupDays,
   gustJumps,
-  handoverWords,
   hoursZone,
-  leadChanges,
   meanBearing,
   nextMidnight,
   nextStarWindow,
   type SpotRow,
-  placeChanges,
   rowHours,
   rowWarning,
   rowWater,
@@ -549,42 +546,6 @@ describe("the one model the stars come from", () => {
     led("2026-10-21T23:00:00Z", "ecmwf", false),
   ];
   const rows = spotRows(hours, now, 270, DEFAULT_RIDER);
-
-  it("finds where the model rating the rows changes, a gap neither starting nor ending a run", () => {
-    expect(leadChanges(rows)).toEqual([
-      {
-        time: Date.parse("2026-10-21T21:00:00Z"),
-        from: "harmonie",
-        to: "ecmwf",
-      },
-    ]);
-    expect(leadChanges(rows.slice(0, 2))).toEqual([]);
-  });
-
-  it("says who takes over, when, and why, in the site's words", () => {
-    const [change] = leadChanges(rows);
-    expect(handoverWords(change, from)).toEqual({
-      kicker: "ECMWF from Wed 22:00",
-      text: "HARMONIE's run ends here. From here the wind and the stars are ECMWF's, which runs fifteen days.",
-    });
-    expect(
-      handoverWords({ ...change, from: "ecmwf", to: "harmonie" }, from).text,
-    ).toBe(
-      "HARMONIE reaches this far again, so the stars are its own once more.",
-    );
-  });
-
-  it("puts a handover before the first row drawn after it, or after the last when its rows are folded away", () => {
-    const [change] = leadChanges(rows);
-    const light = rows.slice(0, 2);
-    const placedLight = placeChanges(light, [change]);
-    expect(placedLight.before.size).toBe(0);
-    expect(placedLight.end).toEqual([change]);
-    const placedAll = placeChanges(rows, [change]);
-    expect(placedAll.before.get(change.time)).toEqual([change]);
-    expect(placedAll.end).toEqual([]);
-    expect(placeChanges([], [change]).end).toEqual([]);
-  });
 
   it("names who rates a day in its header only when it is not just the model chosen", () => {
     expect(dayLeads(rows, from)).toEqual([]);

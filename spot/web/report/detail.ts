@@ -55,13 +55,6 @@ export function gustReading(
   return { factor, text: gustFactorText(factor), kind };
 }
 
-/** What a gust's kind means, for the factor's title and the legend. */
-export const GUST_WORDS: Record<GustKind, string> = {
-  fine: "no cost to your stars",
-  costs: "strong enough to cost a star",
-  over: "past your too much: no stars",
-};
-
 /**
  * The rain in each hour, mm/h, by the hour's time: a model's total spread
  * evenly over the interval it covers (an hour, or three or six further

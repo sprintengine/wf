@@ -51,7 +51,7 @@ test("the week is a Wind section and a Waves section, on one clock", async ({
     "Swell 2",
     "Wind sea",
   ]);
-  // A line per wave model, the blend's, and where the short runs end.
+  // A line per wave model and the blend's, with no word of where runs end.
   const svg = page.locator("[data-wave-svg]");
   await expect(
     svg.locator('[data-band="wave-blend"] path[data-model]'),
@@ -59,11 +59,7 @@ test("the week is a Wind section and a Waves section, on one clock", async ({
   await expect(
     svg.locator('[data-band="wave-blend"] path[data-blend]'),
   ).toHaveCount(1);
-  // The Met Office's, SWAN's and GFS-Wave's: ECMWF's goes on to the end.
-  await expect(svg.locator("[data-run-end]")).toHaveCount(3);
-  await expect(svg.locator('[data-run-end="met-office-wave"]')).toContainText(
-    "Met Office ends",
-  );
+  await expect(svg).not.toContainText(/ ends|from here/);
   // The global models are dashed, the fine ones not.
   const dash = (id: string) =>
     svg
@@ -71,11 +67,6 @@ test("the week is a Wind section and a Waves section, on one clock", async ({
       .evaluate((path) => path.getAttribute("stroke-dasharray"));
   expect(await dash("gfs-wave")).toBeTruthy();
   expect(await dash("mi-swan")).toBeNull();
-  // The headline hands on as the finest model's run ends.
-  await expect(svg.locator("[data-wave-handover]").first()).toHaveAttribute(
-    "data-wave-handover",
-    "mi-swan",
-  );
   // The wind blend: each model, dashed where global, and the blend in ink.
   const windSvg = page.locator("[data-graph-svg]");
   await expect(
@@ -229,9 +220,7 @@ test("with no wave model at all, the page still reads", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("a rider's own wave model leads the waves, handed on past its run", async ({
-  page,
-}) => {
+test("a rider's own wave model leads the waves", async ({ page }) => {
   await page.addInitScript(() =>
     localStorage.setItem(
       "force5.prefs.v1",
@@ -241,12 +230,6 @@ test("a rider's own wave model leads the waves, handed on past its run", async (
   await withWaves(page);
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
-  const svg = page.locator("[data-wave-svg]");
-  await expect(svg.locator("[data-wave-handover]")).toHaveCount(1);
-  await expect(svg.locator("[data-wave-handover]")).toHaveAttribute(
-    "data-wave-handover",
-    "ecmwf-wave",
-  );
   await page.locator('[data-disclosure="key"] summary').click();
   await expect(page.locator("[data-wave-legend]")).toContainText(
     "Wave height: GFS-Wave",
@@ -285,8 +268,6 @@ test("a rider who picks the blends in Settings reads the wind and the waves from
   await expect(page.locator('[data-card="wind"] b').first()).toHaveText(
     new RegExp(`^${await blendKey.textContent()}\\b`),
   );
-  // No "from here": the blend hands over to nothing.
-  await expect(page.locator("[data-graph-svg]")).not.toContainText("from here");
   // The waves likewise, where the blend is published.
   await expect(page.locator("[data-wave-legend]")).toContainText(
     "Wave height: the blend",
@@ -318,8 +299,7 @@ test("the headline, its range and the blend reach ECMWF's last step, six-hourly 
   expect(await reach(page, "path[data-wave-height]")).toBeCloseTo(end, -1);
   expect(await reach(page, "path[data-wave-spread]")).toBeCloseTo(end, -1);
   expect(await reach(page, "path[data-blend]")).toBeCloseTo(end, -1);
-  // One word that it has passed to ECMWF, and the figures at its steps alone.
-  await expect(svg.locator('[data-wave-handover="ecmwf-wave"]')).toHaveCount(1);
+  // The figures at its steps alone.
   const lastFigures = await svg
     .locator('[data-band="wave-direction"] text')
     .evaluateAll((texts) =>
@@ -346,7 +326,6 @@ test("a rider's ECMWF leads to its end: no flipping between its steps, and a val
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
   const svg = page.locator("[data-wave-svg]");
   await expect(svg.locator('path[data-model="ecmwf-wave"]')).toBeVisible();
-  await expect(svg.locator("[data-wave-handover]")).toHaveCount(0);
   const end = await reach(page, 'path[data-model="ecmwf-wave"]');
   expect(await reach(page, "path[data-wave-height]")).toBeCloseTo(end, -1);
   await page.locator('[data-disclosure="key"] summary').click();
@@ -381,11 +360,6 @@ test("with no GFS-Wave at the place, the waves carry on to ECMWF's last step", a
   await expect(svg.locator("path[data-model]")).toHaveCount(2);
   const end = await reach(page, 'path[data-model="ecmwf-wave"]');
   expect(await reach(page, "path[data-wave-height]")).toBeCloseTo(end, -1);
-  await expect(svg.locator("[data-wave-handover]")).toHaveCount(1);
-  await expect(svg.locator("[data-wave-handover]")).toHaveAttribute(
-    "data-wave-handover",
-    "ecmwf-wave",
-  );
 });
 
 test("sheltered water has no Waves section, as it has no waves through the year", async ({

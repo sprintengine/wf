@@ -5,7 +5,7 @@
  * chart draws. Everything here is pure; times are UTC milliseconds and every
  * label is Irish local time, as everywhere on the site.
  */
-import { handovers, modelName, type StarsFrom } from "../../force5/src/lead";
+import { modelName, type StarsFrom } from "../../force5/src/lead";
 import {
   SHORE_LABEL,
   rateHour,
@@ -511,50 +511,6 @@ export function summariseDay(date: string, rows: SpotRow[]): SpotDay {
 
 // ---- which model rates the hours ---------------------------------------------
 
-/** Where the model the stars come from changes, down the page's rows. */
-export interface LeadChange {
-  /** The first row the new model rates. */
-  time: number;
-  from: string;
-  to: string;
-}
-
-/**
- * Each change of model down the rows: where the chosen model's run ends and
- * the one that takes over begins. A row with no wind neither starts nor ends
- * a run.
- */
-export function leadChanges(rows: readonly SpotRow[]): LeadChange[] {
-  return handovers(rows.map((row) => row.hour.wind?.lead ?? null)).map(
-    ({ at, from, to }) => ({ time: rows[at].time, from, to }),
-  );
-}
-
-/**
- * The handover row's words: "ECMWF from Wed 22:00", and why. `from` is the
- * rider's model and ECMWF after it.
- */
-export function handoverWords(
-  change: LeadChange,
-  from: StarsFrom,
-): { kicker: string; text: string } {
-  const to = modelName(change.to);
-  const was = modelName(change.from);
-  const kicker = `${to} from ${weekdayShort.format(change.time)} ${clock(change.time)}`;
-  if (change.to === from.model)
-    return {
-      kicker,
-      text: `${to} reaches this far again, so the stars are its own once more.`,
-    };
-  return {
-    kicker,
-    text:
-      change.to === from.then
-        ? `${was}'s run ends here. From here the wind and the stars are ${to}'s, which runs fifteen days.`
-        : `${was}'s run ends here. From here the wind and the stars are ${to}'s.`,
-  };
-}
-
 /**
  * The models that rate a day's daylight hours, in the order they do, for the
  * day's header: empty when there are none, or when it is only the model the
@@ -572,25 +528,6 @@ export function dayLeads(rows: readonly SpotRow[], from: StarsFrom): string[] {
 /** "HARMONIE, then ECMWF": whose forecast a day is, said in its header. */
 export const dayLeadText = (leads: readonly string[]) =>
   leads.map(modelName).join(", then ");
-
-/**
- * Where each change goes among the rows a day draws: before the first drawn
- * row at or after it, or after the last when the rows it falls among are
- * folded away. Keyed by that row's time; `end` holds the ones after the last.
- */
-export function placeChanges(
-  drawn: readonly SpotRow[],
-  changes: readonly LeadChange[],
-): { before: Map<number, LeadChange[]>; end: LeadChange[] } {
-  const before = new Map<number, LeadChange[]>();
-  const end: LeadChange[] = [];
-  for (const change of changes) {
-    const row = drawn.find((r) => r.time >= change.time);
-    if (row) before.set(row.time, [...(before.get(row.time) ?? []), change]);
-    else if (drawn.length) end.push(change);
-  }
-  return { before, end };
-}
 
 /**
  * The night a day's table folds away: the dark rows before the first light

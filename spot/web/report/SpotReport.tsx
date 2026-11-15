@@ -78,11 +78,7 @@ import {
 } from "../../../shared/web/afterDark";
 import { RatingTip } from "../../../ui/RatingTip";
 import { starsText } from "../../../force5/src/stars";
-import {
-  WAVE_REASON,
-  waveStars,
-  type WaveRating,
-} from "../../../force5/src/waveStars";
+import { waveStars, type WaveRating } from "../../../force5/src/waveStars";
 import { warningName } from "../Warnings";
 import { noticeWords, restrictionShort } from "../WaterQuality";
 import { NO_RING, RING, tv } from "../../../ui/tv";
@@ -104,7 +100,6 @@ import {
   groupDays,
   gustShown,
   windSay,
-  leadChanges,
   spotRows,
   tideCurve,
   tideHeightAt,
@@ -116,7 +111,6 @@ import { useSpotPicture } from "../useSpotPicture";
 import { useWidth } from "../useWidth";
 import { launchBed, launchDepth, type LaunchBed } from "./launch";
 import {
-  GUST_WORDS,
   gustReading,
   modelSeries,
   rainPerHour,
@@ -130,7 +124,6 @@ import { WAVE_BLEND, waveLeadOrder } from "../../../force5/src/waves";
 import {
   PART_ROWS,
   partOf,
-  waveHandovers,
   waveWeek,
   windBlend,
   type PartRow,
@@ -1580,8 +1573,6 @@ const waveModelName = (id: string) =>
   id === WAVE_BLEND
     ? "Blend"
     : (modelEntry(id)?.name ?? (id === "ibi-wave" ? "Copernicus IBI" : id));
-/** Where a wave model's run is said to end, on its line: "Met Office ends". */
-const waveEndName = (id: string) => waveModelName(id).replace(/ Wave$/, "");
 
 /** Whether the page is laid out for a desktop (the theme's `wide`), kept current. */
 function useWide() {
@@ -2153,7 +2144,6 @@ function Graph({
   );
   const deepAt =
     bed && Number.isFinite(bed.z) && !bed.area.level ? bed.z + 1 : null;
-  const handovers = leadChanges(rows);
   const ay = lower.axis;
   const hoverRow = hover === null ? null : rows[hover];
   useEffect(() => {
@@ -2550,8 +2540,7 @@ function Graph({
         return <NoticeMark level={taken.level}>{taken.word}</NoticeMark>;
       return (
         <span className={s.hourLabelQuiet()}>
-          {r.rating?.reasons[0] ??
-            (r.hour.daylight ? "No stars" : dark ? "Twilight" : "Dark")}
+          {r.hour.daylight ? "No stars" : dark ? "Twilight" : "Dark"}
         </span>
       );
     }
@@ -2599,9 +2588,6 @@ function Graph({
           {!atNow && factor && (
             <span className={s.hourLabelQuiet()} data-card-gust-factor>
               Gust factor {factor.text}
-              {rated && factor.kind !== "fine"
-                ? `, ${GUST_WORDS[factor.kind]}`
-                : ""}
             </span>
           )}
         </>
@@ -2707,20 +2693,11 @@ function Graph({
         return (
           <span className={s.hourLabelLine()}>
             <Stars n={rating.stars} size={12} waves />
-            {rating.reasons[0] && (
-              <span className={s.hourLabelQuiet()}>
-                {WAVE_REASON[rating.reasons[0]]}
-              </span>
-            )}
           </span>
         );
       return (
         <span className={s.hourLabelQuiet()}>
-          {rating
-            ? `No wave stars${rating.reasons[0] ? `: ${WAVE_REASON[rating.reasons[0]].toLowerCase()}` : ""}`
-            : r.hour.daylight
-              ? "No wave stars"
-              : "Dark"}
+          {rating || r.hour.daylight ? "No wave stars" : "Dark"}
         </span>
       );
     }
@@ -2838,8 +2815,6 @@ function Graph({
   /** A label's x kept in the window of the hours, `margin` from its edges. */
   const clampX = (x: number, margin: number) =>
     Math.min(Math.max(x, scrolled + margin), scrolled + width - margin);
-  /** A note drawn from `x` that would not run into the now line. */
-  const clearOfNow = (x: number) => X(now) < x - 4 || X(now) > x + 128;
   // Below a figure group's own width, every other one.
   const figureEvery = 3 * px >= 46 ? 3 : 6;
   /**
@@ -3304,27 +3279,6 @@ function Graph({
                 units={units}
                 whole={whole}
               />
-              {handovers.filter(seen).map((h, i) => (
-                <g key={i}>
-                  <line
-                    x1={X(h.time)}
-                    x2={X(h.time)}
-                    y1={ROW.wind[0] - 6}
-                    y2={ROW.dir[0] + 40}
-                    className="stroke-ink-muted"
-                    strokeDasharray="3 4"
-                  />
-                  {X(h.time) >= scrolled && clearOfNow(X(h.time) + 6) && (
-                    <text
-                      x={X(h.time) + 6}
-                      y={ROW.wind[0] + 6}
-                      className="fill-ink-muted font-body text-caption"
-                    >
-                      {modelName(h.to)} from here
-                    </text>
-                  )}
-                </g>
-              ))}
               {marks("wind", ay)}
               {hoverRow?.hour.wind && (
                 <circle
@@ -3432,9 +3386,6 @@ function Graph({
                   px={px}
                   W={W}
                   hover={hover}
-                  end={end}
-                  handovers={waveHandovers(rows, waves).filter(seen)}
-                  scrolled={scrolled}
                   whole={whole}
                   halo={halo}
                   pointed={card?.section === "waves" ? card.band : null}
@@ -4274,7 +4225,7 @@ function LowerBands({
  * - Period: the peak period, every third hour.
  * - Models: every wave model's own line through its own steps, in its
  *   own colour, the global ones dashed; the blend's in ink where it is
- *   published; and a dotted mark where a model's run ends inside the week.
+ *   published.
  * - The swells and the wind sea: the lead model's own split, each its
  *   height as a low area and, every sixth hour, where it runs, how high and
  *   its period. One model's split, never averaged with another's.
@@ -4290,9 +4241,6 @@ function WaveBands({
   px,
   W,
   hover,
-  end,
-  handovers,
-  scrolled,
   whole,
   halo,
   pointed,
@@ -4308,12 +4256,6 @@ function WaveBands({
   px: number;
   W: number;
   hover: number | null;
-  /** The week's end: a run that ends before it is marked where it does. */
-  end: number;
-  /** Where the headline's model changes (`waveHandovers`). */
-  handovers: readonly { time: number; to: string }[];
-  /** How far the hours are scrolled: a note past the left edge goes. */
-  scrolled: number;
   /** Whether figures `half` either side of `x` escape being cut by the window. */
   whole: (x: number, half: number) => boolean;
   /** The class that keeps a figure clear of the night's hatch at its time. */
@@ -4457,28 +4399,6 @@ function WaveBands({
                 strokeWidth={2}
                 data-wave-height
               />
-              {/* Where the headline's model changes: its run has ended. */}
-              {handovers.map((change) => (
-                <g key={change.time} data-wave-handover={change.to}>
-                  <line
-                    x1={X(change.time)}
-                    x2={X(change.time)}
-                    y1={y - 6}
-                    y2={(bands.wdir ?? bands.waves!)[0] + 40}
-                    className="stroke-ink-muted"
-                    strokeDasharray="3 4"
-                  />
-                  {X(change.time) >= scrolled && (
-                    <text
-                      x={X(change.time) + 6}
-                      y={y + 6}
-                      className={`fill-ink-muted ${caption}`}
-                    >
-                      {waveModelName(change.to)} from here
-                    </text>
-                  )}
-                </g>
-              ))}
               {hovered && hoveredWave?.heightM != null && seen(hovered) && (
                 <circle
                   cx={mid(hovered)}
@@ -4587,9 +4507,6 @@ function WaveBands({
           const blended = at
             .filter((p) => p.w.blendM !== null)
             .map((p) => ({ ...p, held: p.w.blendHeld }));
-          // How far the longest run reaches in the hours drawn: a run that
-          // ends there is cut by the graph, not ended.
-          const reach = Math.max(...waves.lines.map((l) => l.last));
           return (
             <g data-band="wave-blend">
               {scale(
@@ -4644,46 +4561,6 @@ function WaveBands({
                   data-blend
                 />
               )}
-              {/* Where a model's run ends inside the week: past it, the
-                  blend is made of the models that are left. */}
-              {waves.lines
-                .filter(
-                  (l) =>
-                    l.last + 3 * HOUR < reach &&
-                    l.last + 3 * HOUR < end &&
-                    l.last > (rows[0]?.time ?? 0) &&
-                    seen({ time: l.last }),
-                )
-                .map((l) => {
-                  const x = X(l.last) + px / 2;
-                  return (
-                    <g key={l.id} data-run-end={l.id}>
-                      <line
-                        x1={x}
-                        x2={x}
-                        y1={y - 4}
-                        y2={y + h}
-                        className="stroke-ink-muted"
-                        strokeDasharray="3 4"
-                      />
-                      <circle
-                        cx={x}
-                        cy={y + 2}
-                        r={3}
-                        className={waveHue(l.id).fill}
-                      />
-                      {x >= scrolled && (
-                        <text
-                          x={x + 7}
-                          y={y + 6}
-                          className={`fill-ink-muted ${caption}`}
-                        >
-                          {waveEndName(l.id)} ends
-                        </text>
-                      )}
-                    </g>
-                  );
-                })}
               {hovered &&
                 seen(hovered) &&
                 waves.lines.map((l) => {
@@ -4913,7 +4790,6 @@ function HourTable({
                         rated && g && g.kind !== "fine" ? "text-gust-ink" : ""
                       }`,
                     })}
-                    title={rated && g ? GUST_WORDS[g.kind] : undefined}
                     data-gust-cell={g?.kind}
                   >
                     {g ? g.text : "–"}

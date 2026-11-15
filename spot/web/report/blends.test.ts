@@ -4,7 +4,6 @@ import { WAVE_BLEND } from "../../../force5/src/waves";
 import type { WaveBlendHour } from "../../../force5/src/waveBlend";
 import {
   partOf,
-  waveHandovers,
   waveOrder,
   waveWeek,
   windBlend,
@@ -14,6 +13,21 @@ import {
 const HOUR = 3600000;
 const T0 = Date.parse("2026-11-04T12:00:00Z");
 const iso = (h: number) => new Date(T0 + h * HOUR).toISOString();
+
+/** Where the headline's model changes down the rows, and to which. */
+function waveHandovers(
+  rows: readonly { time: number }[],
+  week: ReturnType<typeof waveWeek>,
+): { time: number; to: string }[] {
+  const out: { time: number; to: string }[] = [];
+  let last: string | null = null;
+  week.rows.forEach((row, i) => {
+    const lead = row?.lead ?? null;
+    if (lead && last && lead !== last) out.push({ time: rows[i].time, to: lead });
+    if (lead) last = lead;
+  });
+  return out;
+}
 
 describe("windBlend", () => {
   it("reads the forecast's blend of every model, and their range", () => {

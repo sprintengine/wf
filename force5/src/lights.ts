@@ -45,8 +45,9 @@
  * through the hours never moves them. Either way a pill is centred on its
  * spot, and where spots are close each moved the least it must to stand
  * clear, with a notch pointing at its spot (./pillPlace.ts, laid out once the
- * camera rests). It is neutral, dark with light words, and says what the map
- * shows (./pillContent.ts). Every other spot is a bead, a small off-white
+ * camera rests). It says what the map shows (./pillContent.ts), filled in its
+ * stars' pink to purple where those stars speak for it, and neutral, dark
+ * with light words, where they do not or there are none. Every other spot is a bead, a small off-white
  * dot, the same whatever the map shows, with a finger's reach where the
  * nearest bead is the one meant (`lt-bead`, src/map.css). The open spot
  * (`sel`) always has its pill, light.
@@ -181,6 +182,7 @@ const MANAGED = [
   "named",
   "w-over",
   "lt-thin",
+  "lt-tint",
 ];
 
 /**
@@ -1050,6 +1052,8 @@ export function createLights(
           ...(w?.state === "over" ? ["w-over"] : []),
           ...(on ? ["sel", "active"] : []),
           ...(named.has(spot.id) ? ["named"] : []),
+          // The plain map's pill in its stars' colour (./pillContent.ts).
+          ...(s?.pill?.tint ? ["lt-tint"] : []),
         ]);
         for (const name of MANAGED) el.classList.toggle(name, want.has(name));
         entry.figure.textContent =

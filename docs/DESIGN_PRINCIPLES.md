@@ -92,9 +92,10 @@ dashed); colour on a marker only ever means wind. On the full chart every
 spot is its ring, filled in its stars' colour, its figure the stars and its
 arrow the wind (2026-11-14). On the finder's map a spot with a pill (beside
 the list, its card in view; on the phone's map, one of the best five in view)
-is a round-ended pill, neutral (dark, with light words, in either theme) and
-saying what the map shows, its arrow alone red offshore; every other spot is a
-bead, a small off-white dot (2026-11-08). A
+is a round-ended pill, filled in its stars' colour as the chart's ring is
+(neutral, dark with light words, with no stars or saying the waves), saying
+what the map shows with its unit, its arrow alone red offshore (2026-11-15);
+every other spot is a bead, a small off-white dot (2026-11-08). A
 weather station or buoy is a squarer, smaller tag in the buoy's gold, its wind
 as it was measured. A forecast is never gold.
 
@@ -1266,7 +1267,7 @@ clear of the others, of the map's controls and of the dock, the sea side first,
 at most about 40 px from its spot, and keeps a small notch on the edge facing
 its spot, pointing at it (force5/src/pillPlace.ts); the first card's pill moves
 least. Pills are neutral, dark with light words in either theme, never filled
-in the stars' colours, and say what the dock's field shows
+in the stars' colours (until 2026-11-15, below), and say what the dock's field shows
 (force5/src/pillContent.ts): with no field on, the wind's arrow, the wind with
 its unit and the sky ("↗ 13 kn" and a cloud); with Wind, the arrow, the wind
 and the gust; with Waves, the sea's arrow, its height and its period, and none
@@ -1443,3 +1444,21 @@ stretches under the finger. This replaces the hour bar of 2026-11-07 (play,
 the words, and 06 to 21), the phone's day arrows on it (2026-11-08), and the
 scrub bar's week in view sliding on through the fortnight with a playhead
 dragged across it (2026-11-01).
+
+**2026-11-15 — The pills in their stars' colours, and every figure with its
+unit.** The owner, of the finder's map: a pill is black, white under the
+pointer, and should instead "change colour based on how many stars it gets";
+and a wave pill's bare "2" did not say feet or metres, nor the wind's its
+unit. So a pill on the finder's map (beside the list and on the phone's Map) is
+filled in its spot's stars' pink to purple, one star to five, as the chart's
+rings are (`--color-stars-1…5`), edged a step deeper, its words in ink on the
+two pinks and in paper on the three purples (`.lt-tint`, src/map.css). With
+no stars at the hour, after dark, or with Waves on, it stays neutral, dark
+with light words: the stars rate the wind, not the sea. A cross-offshore
+arrow, red, stands on a small dark disc so it does not sink into the pink.
+Under the pointer, the keys or its card a pill still turns light. Every
+figure says its unit after it: the wind with no field and with Wind ("↗
+13kn", the gust raised beside it), and a wave's height in the rider's feet
+or metres ("↙ 2ft", its period raised beside it); Force alone says itself
+("F4"). This replaces the neutral pill of 2026-11-08 and the bare figures
+with Wind and Waves.

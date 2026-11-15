@@ -208,12 +208,29 @@ test("the pills say what the map shows: the wind and the sky, then Wind, Waves o
   // None on: the arrow, the wind with its unit, and the sky after it.
   await expect(first.locator(".lt-u")).toHaveText("kn");
   await expect(first.locator(".lt-pill > :last-child")).toHaveClass(/lt-sky/);
-  // Wind: the arrow, the wind and the gust raised, no unit, no sky.
+  // Wind: the arrow, the wind with its unit and the gust raised, no sky.
   await page.locator('[data-map-field="wind"]').click();
-  await expect(first.locator(".lt-u")).toHaveCount(0);
+  await expect(first.locator(".lt-u")).toHaveText("kn");
   await expect(first.locator(".lt-sky")).toHaveCount(0);
   await expect(first.locator(".lt-pa")).toHaveCount(1);
   await expect(first.locator(".lt-kn")).toHaveText(/^\d+$/);
+  // Filled in its stars' colour, not the neutral dark (src/map.css).
+  await expect(first).toHaveClass(/\bs[1-5]\b.*\blt-tint\b/);
+  const neutral = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.background = "var(--map-pill)";
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return colour;
+  });
+  await expect
+    .poll(() =>
+      first
+        .locator(".lt-pill")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+    )
+    .not.toBe(neutral);
   await rest(page);
   await pillsAreTheCardsInView(page);
   // Weather: the sky first, beside the air's temperature.
@@ -273,8 +290,12 @@ for (const theme of ["dark", "light"] as const)
     const ids = await pills(page).evaluateAll((els) =>
       els.map((el) => (el as HTMLElement).dataset.spotId!),
     );
-    // Dark with light words, in either theme.
-    for (const id of ids) expect(await fill(id)).toBe("rgb(12, 12, 14)");
+    // Each in its stars' colour, or the neutral dark with none; never light.
+    const rest: Record<string, string> = {};
+    for (const id of ids) {
+      rest[id] = await fill(id);
+      expect(rest[id]).not.toBe("rgb(242, 242, 244)");
+    }
 
     const id = ids[1];
     const pill = page.locator(`.spot-marker[data-spot-id="${id}"] .lt-pill`);
@@ -290,11 +311,11 @@ for (const theme of ["dark", "light"] as const)
     await expect(page.locator("[data-spot-card][data-lit]")).toHaveCount(1);
     // Nothing else fades, and no card opens over the map.
     for (const other of ids.filter((o) => o !== id))
-      expect(await fill(other)).toBe("rgb(12, 12, 14)");
+      expect(await fill(other)).toBe(rest[other]);
     await expect(page.locator(".map-card:not([hidden])")).toHaveCount(0);
     await page.mouse.move(5, 300);
     await expect(card).not.toHaveAttribute("data-lit", "");
-    await expect(pill).toHaveCSS("background-color", "rgb(12, 12, 14)");
+    await expect(pill).toHaveCSS("background-color", rest[id]);
 
     // A card under the pointer: its pill light, and no other.
     const first = ids[0];
@@ -303,7 +324,7 @@ for (const theme of ["dark", "light"] as const)
       page.locator(`.spot-marker[data-spot-id="${first}"] .lt-pill`),
     ).toHaveCSS("background-color", "rgb(242, 242, 244)");
     await expect(page.locator(".spot-marker.lit")).toHaveCount(1);
-    expect(await fill(id)).toBe("rgb(12, 12, 14)");
+    expect(await fill(id)).toBe(rest[id]);
   });
 
 test("a bead pressed scrolls the list to its card", async ({ page }) => {

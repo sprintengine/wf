@@ -287,7 +287,9 @@ so the scheduled job asks for frames: `deploy/local/jobs.toml` gives `mi-swan`
   240 × 200 cells, rows north to south. Heights are rounded to 0.1 m
   (`framePrecision: {"swh": 0.1}`), and a whole metre is written as `1`, not `1.0`.
   Land and cells SWAN does not resolve are `null`, never zero: 19,710 of the 48,000
-  cells, the same in every frame. The spot series keep every variable, rounded to
+  cells, the same in every frame. The map carries the heights into the unsolved
+  water by the shore itself (force5/src/waveField.ts, `carryToCoast`); the frames
+  stay as SWAN solved them. The spot series keep every variable, rounded to
   0.01 m.
 - **The pointer.** The rain frames' shape, with one key more: `grid`,
   `frameVariables`, `framePrecision`, `frameStepHours: 3` and `horizonHours: 144`

@@ -1311,7 +1311,9 @@ rain's beside it, a few words under each, evenly spaced and never touching.
 The Waves field is the wave height on the sea alone, from the Marine
 Institute's Irish Shelf SWAN, a frame every three hours, on the cards' own
 wave-height ramp (`--color-waves-*`), so a metre is the same colour on the map
-and on a card; land and the open sea past the model's grid are left clear. Its
+and on a card; land and the open sea past the model's grid are left clear.
+Where SWAN leaves the water by the shore unsolved, the nearest solved cell's
+height is carried in, up to 8 km, to the basemap's coast (2026-11-15). Its
 legend reads "Metres" with 0, 1, 2, 3 and 5+. Its chip stands only while the
 model's pointer lists frames, as the page finds once it is idle; the source is
 named in About the map, never in the dock. This replaces, in 2026-11-07, the
@@ -1462,3 +1464,21 @@ figure says its unit after it: the wind with no field and with Wind ("↗
 or metres ("↙ 2ft", its period raised beside it); Force alone says itself
 ("F4"). This replaces the neutral pill of 2026-11-08 and the bare figures
 with Wind and Waves.
+
+**2026-11-15 — The wave colours reach the coast, and a calm sea reads as
+sea.** The owner asked that the Waves field's colours reach the coast. SWAN
+solves no water next to much of the shore: most of Dublin Bay, and the first
+few kilometres off Portmarnock, Malahide, Rush and Skerries, are land to it,
+so the colour stopped offshore and left a dark band along the coast. Now each
+unsolved cell within 8 km of a solved one takes the nearest one's height, the
+same reach a spot's own figure is read from (force5/src/waveField.ts,
+`carryToCoast`), and the picture is drawn for the view and kept to the
+basemap's sea, read from the chart's own water each time the map settles
+(force5/src/waveLayer.ts): the colour reaches the coast the chart draws, and
+never the land, a lough or a river. Past the view, until the map settles
+there, it is SWAN's own sea alone. In the dark theme the ramp's calm end
+(`--color-waves-m0`, `--color-waves-m05`) is lifted to a muted sea-green, a
+step lighter than the deepest depth tint and greener than any, so a flat sea
+reads as the field's colour, not as the chart with nothing on it. This
+replaces the Waves field's colour ending midway between SWAN's last wet cell
+and its first dry one (2026-11-07).

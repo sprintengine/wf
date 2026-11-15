@@ -28,7 +28,7 @@ describe("with no field on", () => {
       figure: "13",
       unit: "kn",
       sup: null,
-      tint: true,
+      tint: "stars",
     });
   });
 
@@ -66,7 +66,7 @@ describe("with no field on", () => {
       figure: "–",
       unit: null,
       sup: null,
-      tint: true,
+      tint: "stars",
     });
   });
 });
@@ -79,7 +79,7 @@ describe("with Wind on", () => {
       figure: "13",
       unit: "kn",
       sup: "20",
-      tint: true,
+      tint: "stars",
     });
   });
 
@@ -99,15 +99,41 @@ describe("with Wind on", () => {
 });
 
 describe("with Waves on", () => {
-  it("is the sea's arrow, its height with its unit and its period, untinted", () => {
+  it("is the sea's arrow, its height with its unit and its period", () => {
     expect(pillContent("waves", reading(), "kn", "m")).toEqual({
       arrow: 90,
       sky: null,
       figure: "1.2",
       unit: "m",
       sup: "8s",
-      tint: false,
+      // 8 s is two wave stars; with no facing, neither reach nor wind moves it.
+      tint: "waves2",
     });
+  });
+
+  it("is filled in its wave stars' green where the beach's facing is known", () => {
+    // 4 ft at 8 s straight in from the west, the wind cross-offshore: 3.
+    expect(
+      pillContent("waves", reading({ facing: 270, from: 120 }), "kn")?.tint,
+    ).toBe("waves3");
+    // Onshore: 1.
+    expect(
+      pillContent("waves", reading({ facing: 270, from: 270 }), "kn")?.tint,
+    ).toBe("waves1");
+    // Chop is no stars, and no colour; nor is the dark.
+    expect(
+      pillContent(
+        "waves",
+        reading({
+          facing: 270,
+          sea: { height: 1.2, period: 5, direction: 270 },
+        }),
+        "kn",
+      )?.tint,
+    ).toBeNull();
+    expect(
+      pillContent("waves", reading({ facing: 270, dark: true }), "kn")?.tint,
+    ).toBeNull();
   });
 
   it("is in whole feet by default", () => {
@@ -141,7 +167,7 @@ describe("with Weather on", () => {
       figure: "12°",
       unit: null,
       sup: null,
-      tint: true,
+      tint: "stars",
     });
   });
 

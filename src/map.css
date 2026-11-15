@@ -830,20 +830,59 @@
   --tint-edge: var(--color-ink);
   --tint-ink: var(--color-ground);
 }
+/* With Waves on, a pill in its wave stars' green instead
+   (force5/src/waveStars.ts, --color-wave-stars-1…5), the same way. */
+.map-canvas.is-plain .lt.lt-wave.ws1 {
+  --tint: var(--color-wave-stars-1);
+  --tint-edge: var(--color-wave-stars-2);
+  --tint-ink: var(--color-ink);
+}
+.map-canvas.is-plain .lt.lt-wave.ws2 {
+  --tint: var(--color-wave-stars-2);
+  --tint-edge: var(--color-wave-stars-3);
+  --tint-ink: var(--color-ink);
+}
+.map-canvas.is-plain .lt.lt-wave.ws3 {
+  --tint: var(--color-wave-stars-3);
+  --tint-edge: var(--color-wave-stars-4);
+  --tint-ink: var(--color-ground);
+}
+.map-canvas.is-plain .lt.lt-wave.ws4 {
+  --tint: var(--color-wave-stars-4);
+  --tint-edge: var(--color-wave-stars-5);
+  --tint-ink: var(--color-ground);
+}
+.map-canvas.is-plain .lt.lt-wave.ws5 {
+  --tint: var(--color-wave-stars-5);
+  --tint-edge: var(--color-ink);
+  --tint-ink: var(--color-ground);
+}
 .map-canvas.is-plain
-  .lt.lt-tint:is(.s1, .s2, .s3, .s4, .s5):not(.lit, .sel, :focus-visible)
+  .lt:is(.lt-tint:is(.s1, .s2, .s3, .s4, .s5), .lt-wave):not(
+    .lit,
+    .sel,
+    :focus-visible
+  )
   .lt-pill {
   background: var(--tint);
   border-color: var(--tint-edge);
   color: var(--tint-ink);
 }
 .map-canvas.is-plain
-  .lt.lt-tint:is(.s1, .s2, .s3, .s4, .s5):not(.lit, .sel, :focus-visible)
+  .lt:is(.lt-tint:is(.s1, .s2, .s3, .s4, .s5), .lt-wave):not(
+    .lit,
+    .sel,
+    :focus-visible
+  )
   .lt-pill[data-n]::after {
   border-color: var(--tint-edge);
 }
 .map-canvas.is-plain
-  .lt.lt-tint:is(.s1, .s2, .s3, .s4, .s5):not(.lit, .sel, :focus-visible)
+  .lt:is(.lt-tint:is(.s1, .s2, .s3, .s4, .s5), .lt-wave):not(
+    .lit,
+    .sel,
+    :focus-visible
+  )
   :is(.lt-u, .lt-gu) {
   color: color-mix(in srgb, var(--tint-ink) 80%, var(--tint));
 }
@@ -2028,6 +2067,10 @@
 .sp-none {
   color: var(--color-ink-muted);
   font-weight: 500;
+}
+/* The wave stars after the sea's figures, in their green. */
+.sp-wave-stars {
+  margin-left: 8px;
 }
 .sp-foot {
   display: flex;

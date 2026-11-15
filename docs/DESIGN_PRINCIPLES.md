@@ -1462,3 +1462,17 @@ figure says its unit after it: the wind with no field and with Wind ("↗
 or metres ("↙ 2ft", its period raised beside it); Force alone says itself
 ("F4"). This replaces the neutral pill of 2026-11-08 and the bare figures
 with Wind and Waves.
+
+**2026-11-15 — Wave stars, in their own green.** The owner asked for a way to
+rate the waves, apart from the wind, with "another colour for the waves", and
+picked green. Each daylight hour's sea has wave stars out of five
+(force5/src/waveStars.ts, docs/STAR_RATINGS.md), the period first, never
+moving the wind's stars. They are a leaf green, pale to deep, one star to
+five (`--color-wave-stars-1…5`), kept apart from the wind's pink and from the
+sea's height ramp (sea-green to indigo). With Waves on, a pill on the
+finder's map is filled in its wave stars' green the way a pill is filled in
+the wind's pink (`.lt-wave.ws1…5`), and neutral with none; a card's Waves bar
+carries them as a strip along its foot, as the sky carries the rain; the
+phone's peek gives them after the sea's figures; and the spot page's Waves
+section is headed by their strip, as the Wind section is by the stars, the
+hour's label giving the stars and why.

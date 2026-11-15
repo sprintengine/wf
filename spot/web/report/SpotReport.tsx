@@ -78,6 +78,11 @@ import {
 } from "../../../shared/web/afterDark";
 import { RatingTip } from "../../../ui/RatingTip";
 import { starsText } from "../../../force5/src/stars";
+import {
+  WAVE_REASON,
+  waveStars,
+  type WaveRating,
+} from "../../../force5/src/waveStars";
 import { warningName } from "../Warnings";
 import { noticeWords, restrictionShort } from "../WaterQuality";
 import { NO_RING, RING, tv } from "../../../ui/tv";
@@ -349,15 +354,37 @@ const STAR_FILL = [
   "fill-stars-4",
   "fill-stars-5",
 ];
+/** The wave stars' greens (force5/src/waveStars.ts), one to five. */
+const WAVE_STAR_FILL = [
+  "fill-line",
+  "fill-wave-stars-1",
+  "fill-wave-stars-2",
+  "fill-wave-stars-3",
+  "fill-wave-stars-4",
+  "fill-wave-stars-5",
+];
 
-/** The star rating, as stars: filled in the rating's colour, the rest faint. */
-export function Stars({ n, size = 13 }: { n: number; size?: number }) {
+/**
+ * The star rating, as stars: filled in the rating's colour, the rest faint;
+ * the wave stars (`waves`) in their green.
+ */
+export function Stars({
+  n,
+  size = 13,
+  waves = false,
+}: {
+  n: number;
+  size?: number;
+  waves?: boolean;
+}) {
+  const fill = waves ? WAVE_STAR_FILL : STAR_FILL;
   return (
     <span
       className="inline-flex items-center gap-px align-middle"
       role="img"
-      aria-label={`${n} of 5 stars`}
-      data-stars={n}
+      aria-label={`${n} of 5 ${waves ? "wave stars" : "stars"}`}
+      data-stars={waves ? undefined : n}
+      data-wave-stars={waves ? n : undefined}
     >
       {[1, 2, 3, 4, 5].map((k) => (
         <svg
@@ -367,7 +394,7 @@ export function Stars({ n, size = 13 }: { n: number; size?: number }) {
           viewBox="0 0 24 24"
           aria-hidden="true"
         >
-          <path d={STAR} className={k <= n ? STAR_FILL[n] : STAR_FILL[0]} />
+          <path d={STAR} className={k <= n ? fill[n] : fill[0]} />
         </svg>
       ))}
     </span>
@@ -868,6 +895,7 @@ export function SpotReport({
                 blend={blend}
                 waves={seaShown}
                 waveModel={waveModel}
+                facing={facing}
                 current={current}
                 rain={rain}
                 measured={paired}
@@ -1448,12 +1476,15 @@ const WIND_NAME: Record<WindBand, string> = {
 };
 
 /**
- * The waves' bands: the blended height with the models' spread, where the
+ * The waves' bands: the wave stars as a strip in their green, as the wind's
+ * stars head the Wind section (force5/src/waveStars.ts), the blended height
+ * with the models' spread, where the
  * sea comes from with its height, its peak period, every wave model's own
  * line and the blend's, and then the swells and the wind sea, each a band
  * only where the lead model has it somewhere in the week.
  */
 const WAVE_BANDS = [
+  ["wstars", 8, 8],
   ["waves", 92, 12],
   ["wdir", 40, 4],
   ["period", 18, 14],
@@ -1469,6 +1500,7 @@ const MIN_TRAIN_M = 0.15;
 /** Past the lead model's split: its absence is not a calm sea. */
 const NO_SWELL_SPLIT = "Swell split not forecast this far ahead";
 const WAVE_NAME: Record<WaveBand, string> = {
+  wstars: "Wave stars",
   waves: "Waves",
   wdir: "Direction",
   period: "Period",
@@ -1595,6 +1627,7 @@ function Graph({
   blend,
   waves,
   waveModel,
+  facing,
   current,
   rain,
   measured = null,
@@ -1636,6 +1669,8 @@ function Graph({
   waves: WaveWeek | null;
   /** The rider's wave model, or null for the finest at each hour. */
   waveModel: string | null;
+  /** The beach's seaward bearing, for the wave stars, or null. */
+  facing: number | null;
   current: SpotCurrents;
   /** The rain in each hour, mm/h, by the hour's time (`rainPerHour`). */
   rain: ReadonlyMap<number, number>;
@@ -1658,6 +1693,23 @@ function Graph({
 }) {
   const speed = useSpeed();
   const heights = useHeights();
+  // The wave stars at each row, by day (force5/src/waveStars.ts).
+  const waveRated = useMemo(
+    () =>
+      rows.map((r, i) => {
+        const w = waves?.rows[i];
+        return w && w.heightM !== null && r.hour.daylight
+          ? waveStars({
+              height: w.heightM,
+              period: w.periodS,
+              direction: w.from,
+              windFrom: r.hour.wind?.direction_deg ?? null,
+              facing,
+            })
+          : null;
+      }),
+    [rows, waves, facing],
+  );
   const units = useContext(UnitsContext);
   const s = styles();
   const [ref, width] = useWidth<HTMLDivElement>(900);
@@ -2450,12 +2502,14 @@ function Graph({
   );
   const waveStack = waves
     ? stack(WAVE_BANDS, RAIL - 4, (band) =>
-        // A train that stays under this all week has no row of its own.
+        // A train that stays under this all week has no row of its own; a
+        // point on the open water has no beach, and no wave stars, as it has
+        // no wind stars.
         band in WAVE_PART
           ? waves.rows.some(
               (r) => (partOf(r, band as PartRow)?.heightM ?? 0) >= MIN_TRAIN_M,
             )
-          : true,
+          : band !== "wstars" || rated,
       )
     : null;
   // Where the rows of the swells have run out of forecast, scrolled past their
@@ -2647,6 +2701,29 @@ function Graph({
   /** What the label says for a row of the Waves section at the hour. */
   const waveLabel = (band: WaveBand, r: SpotRow): React.ReactNode => {
     const w = waves?.rows[rows.indexOf(r)] ?? null;
+    if (band === "wstars") {
+      const rating = waveRated[rows.indexOf(r)];
+      if (rating?.stars)
+        return (
+          <span className={s.hourLabelLine()}>
+            <Stars n={rating.stars} size={12} waves />
+            {rating.reasons[0] && (
+              <span className={s.hourLabelQuiet()}>
+                {WAVE_REASON[rating.reasons[0]]}
+              </span>
+            )}
+          </span>
+        );
+      return (
+        <span className={s.hourLabelQuiet()}>
+          {rating
+            ? `No wave stars${rating.reasons[0] ? `: ${WAVE_REASON[rating.reasons[0]].toLowerCase()}` : ""}`
+            : r.hour.daylight
+              ? "No wave stars"
+              : "Dark"}
+        </span>
+      );
+    }
     if (band === "wblend") {
       return (
         <>
@@ -3347,6 +3424,7 @@ function Graph({
                 <WaveBands
                   rows={rows}
                   waves={waves}
+                  rated={waveRated}
                   seen={seen}
                   apart={apart}
                   bands={waveStack.at}
@@ -4204,6 +4282,7 @@ function LowerBands({
 function WaveBands({
   rows,
   waves,
+  rated,
   seen,
   apart,
   bands,
@@ -4220,6 +4299,8 @@ function WaveBands({
 }: {
   rows: readonly SpotRow[];
   waves: WaveWeek;
+  /** Each row's wave stars, or null where it is not rated. */
+  rated: readonly (WaveRating | null)[];
   seen: (row: Pick<SpotRow, "time">) => boolean;
   apart: (a: number, b: number) => boolean;
   bands: Stack<WaveBand>["at"];
@@ -4443,6 +4524,30 @@ function WaveBands({
                     </text>
                   </g>
                 ))}
+            </g>
+          );
+        })()}
+      {bands.wstars &&
+        (() => {
+          const [y, h] = bands.wstars;
+          // Only where there are stars, as the wind's strip.
+          return (
+            <g data-band="wstars">
+              {rows.map((r, i) => {
+                const n = rated[i]?.stars ?? 0;
+                return n && seen(r) ? (
+                  <rect
+                    key={i}
+                    x={X(r.time) + 1}
+                    y={y}
+                    width={r.step * px - 2}
+                    height={h}
+                    rx={2}
+                    className={WAVE_STAR_FILL[n]}
+                    data-wave-stars={n}
+                  />
+                ) : null;
+              })}
             </g>
           );
         })()}

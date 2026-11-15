@@ -6,6 +6,7 @@ import {
   type PillReading,
 } from "../force5/src/pillContent";
 import type { TideEvent } from "../force5/src/tides";
+import { waveStars } from "../force5/src/waveStars";
 import { speedShort, type Units, type WaveUnits } from "../force5/src/units";
 import type { Spot } from "../force5/src/weather";
 import { Button } from "../ui/Button";
@@ -97,6 +98,18 @@ const SpotPeek = forwardRef<
   ref,
 ) {
   const stars = hour?.rating && hour.daylight ? hour.rating : null;
+  // The wave stars, by day, where the sea is read (force5/src/waveStars.ts).
+  const sea = reading.sea;
+  const waves =
+    sea && !reading.inland && !reading.dark
+      ? waveStars({
+          height: sea.height,
+          period: sea.period,
+          direction: sea.direction,
+          windFrom: reading.from,
+          facing: reading.facing ?? null,
+        })
+      : null;
   const tide = time === null ? null : tideWords(tides, time);
   return (
     <div
@@ -136,9 +149,20 @@ const SpotPeek = forwardRef<
           {reading.inland ? (
             <span className="sp-none">None inland</span>
           ) : (
-            <Figures
-              html={pillHtml(pillContent("waves", reading, units, waveUnits))}
-            />
+            <>
+              <Figures
+                html={pillHtml(pillContent("waves", reading, units, waveUnits))}
+              />
+              {waves && (
+                <StarGlyphs
+                  stars={waves.stars}
+                  potential={waves.potential}
+                  size={10}
+                  waves
+                  className="sp-wave-stars"
+                />
+              )}
+            </>
           )}
         </dd>
         <dt>Weather</dt>

@@ -46,9 +46,10 @@
  * spot, and where spots are close each moved the least it must to stand
  * clear, with a notch pointing at its spot (./pillPlace.ts, laid out once the
  * camera rests). It says what the map shows (./pillContent.ts), filled in its
- * stars' pink to purple where those stars speak for it, and neutral, dark
- * with light words, where they do not or there are none. Every other spot is a bead, a small off-white
- * dot, the same whatever the map shows, with a finger's reach where the
+ * stars' pink to purple where those stars speak for it, in its wave stars'
+ * green with Waves on, and neutral, dark with light words, with none. Every
+ * other spot is a bead, a small off-white dot, the same whatever the map
+ * shows, with a finger's reach where the
  * nearest bead is the one meant (`lt-bead`, src/map.css). The open spot
  * (`sel`) always has its pill, light.
  *
@@ -183,6 +184,12 @@ const MANAGED = [
   "w-over",
   "lt-thin",
   "lt-tint",
+  "lt-wave",
+  "ws1",
+  "ws2",
+  "ws3",
+  "ws4",
+  "ws5",
 ];
 
 /**
@@ -1052,8 +1059,12 @@ export function createLights(
           ...(w?.state === "over" ? ["w-over"] : []),
           ...(on ? ["sel", "active"] : []),
           ...(named.has(spot.id) ? ["named"] : []),
-          // The plain map's pill in its stars' colour (./pillContent.ts).
-          ...(s?.pill?.tint ? ["lt-tint"] : []),
+          // The plain map's pill in its stars' colour, or its wave stars'
+          // (./pillContent.ts).
+          ...(s?.pill?.tint === "stars" ? ["lt-tint"] : []),
+          ...(s?.pill?.tint?.startsWith("waves")
+            ? ["lt-wave", `ws${s.pill.tint.slice(5)}`]
+            : []),
         ]);
         for (const name of MANAGED) el.classList.toggle(name, want.has(name));
         entry.figure.textContent =

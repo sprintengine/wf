@@ -14,15 +14,18 @@
  *   raised beside it while it rains.
  *
  * Filled in the spot's stars' own colour, pink to purple as the chart's rings
- * are, where the stars are what the pill speaks for (`tint`): with no field,
- * Wind or Weather. A wave pill stays neutral, dark with light words: the
- * stars rate the wind, not the sea. So does a spot with no stars at the hour.
+ * are, where the wind's stars are what the pill speaks for (`tint`): with no
+ * field, Wind or Weather. A wave pill is filled in its wave stars' green
+ * instead (./waveStars.ts), pale to deep, one star to five. A pill with no
+ * stars of its kind at the hour, or after dark, stays neutral, dark with light
+ * words.
  * The arrow alone may be red, for a wind blowing off the shore. Pure: the field, the reading and the units in, the
  * parts out, for lights.ts to draw and for a test to read.
  */
 import { skyGlyph, type GlyphDef } from "../../shared/web/glyphSet";
 import type { MapField } from "./mapField";
 import type { WeatherIcon } from "./presentWeather";
+import { waveStars } from "./waveStars";
 import {
   speedShort,
   unitLabel,
@@ -57,7 +60,12 @@ export interface PillReading {
   } | null;
   /** The open sea's waves do not reach the spot (a lake, a lough, a harbour). */
   inland: boolean;
+  /** The beach's seaward bearing (./shoreFacing.ts), for the wave stars. */
+  facing?: number | null;
 }
+
+/** What a pill is filled by: the wind's stars, the wave stars, or nothing. */
+export type PillTint = "stars" | `waves${1 | 2 | 3 | 4 | 5}` | null;
 
 /** The parts of a pill, in the order they stand. */
 export interface PillParts {
@@ -71,8 +79,11 @@ export interface PillParts {
   unit: string | null;
   /** A second figure, raised and quieter: the gust, the period, the rain. */
   sup: string | null;
-  /** The pill takes its spot's stars' colour (src/map.css `.lt-tint`). */
-  tint: boolean;
+  /**
+   * The colour the pill takes (src/map.css): its spot's stars' (`.lt-tint`,
+   * with the light's stars), its wave stars' (`.lt-wave.ws1…5`), or none.
+   */
+  tint: PillTint;
 }
 
 /** The rain counted as raining, mm in the hour. */
@@ -105,13 +116,25 @@ export function pillContent(
   const wind = r.windKn === null ? "–" : speedShort(r.windKn, units);
   if (field === "waves") {
     if (r.inland) return null;
+    const rated =
+      r.sea && !r.dark
+        ? waveStars({
+            height: r.sea.height,
+            period: r.sea.period,
+            direction: r.sea.direction,
+            windFrom: r.from,
+            facing: r.facing ?? null,
+          })
+        : null;
     return {
       arrow: r.sea ? going(r.sea.direction) : null,
       sky: null,
       figure: r.sea ? waveFigure(r.sea.height, waveUnits) : "–",
       unit: r.sea ? waveUnits : null,
       sup: r.sea?.period == null ? null : `${Math.round(r.sea.period)}s`,
-      tint: false,
+      tint: rated?.stars
+        ? (`waves${rated.stars}` as `waves${1 | 2 | 3 | 4 | 5}`)
+        : null,
     };
   }
   if (field === "weather") {
@@ -122,7 +145,7 @@ export function pillContent(
       figure: r.air === null ? "–" : `${Math.round(r.air)}°`,
       unit: null,
       sup: raining ? r.rain!.toFixed(1) : null,
-      tint: true,
+      tint: "stars",
     };
   }
   // Force is said with its figure ("F4"), and needs no unit after it.
@@ -137,7 +160,7 @@ export function pillContent(
         r.windKn === null || r.gustKn === null
           ? null
           : speedShort(r.gustKn, units),
-      tint: true,
+      tint: "stars",
     };
   return {
     arrow: r.windKn === null ? null : going(r.from),
@@ -145,7 +168,7 @@ export function pillContent(
     figure: wind,
     unit,
     sup: null,
-    tint: true,
+    tint: "stars",
   };
 }
 
@@ -153,7 +176,7 @@ export function pillContent(
 export const pillKey = (p: PillParts | null) =>
   p === null
     ? ""
-    : `${p.arrow ?? ""}|${p.sky ? `${p.sky.icon},${p.sky.dark},${p.sky.first}` : ""}|${p.figure}|${p.unit ?? ""}|${p.sup ?? ""}|${p.tint}`;
+    : `${p.arrow ?? ""}|${p.sky ? `${p.sky.icon},${p.sky.dark},${p.sky.first}` : ""}|${p.figure}|${p.unit ?? ""}|${p.sup ?? ""}|${p.tint ?? ""}`;
 
 /** The pill's arrow, pointing up, in a 12-unit box about its centre. */
 export const PILL_ARROW = "M0 4.6V-4.4M-2.7 -1.6L0 -4.8L2.7 -1.6";

@@ -42,6 +42,7 @@ test("the week is a Wind section and a Waves section, on one clock", async ({
     "Current",
   ]);
   await expect(waves.locator("[data-band-name]")).toHaveText([
+    "Wave stars",
     "Waves",
     "Direction",
     "Period",

@@ -1257,7 +1257,7 @@ test.describe("on a phone, the week graph", () => {
     expect((await settled(page)).left).toBe(before.left);
   });
 
-  test("the band names stand beside the hours, never over them", async ({
+  test("the band names fold away as a finger moves the hours on, and come back as it moves them back", async ({
     page,
   }) => {
     await withTides(page);
@@ -1276,18 +1276,43 @@ test.describe("on a phone, the week graph", () => {
       "Tide",
       "Current",
     ]);
-    // Every name whole, and left of the hours, wherever they are scrolled.
-    const left = (await graph.boundingBox())!.x;
-    await graph.evaluate((el) => (el.scrollLeft = el.scrollWidth / 3));
+    const column = page.locator('[data-week-section="wind"] [data-band-names]');
+    const waveColumn = page.locator(
+      '[data-week-section="waves"] [data-band-names]',
+    );
+    // Opened on now, moved there by the page: the names are out, whole, and
+    // at the start of the hours the first hour stands clear of them.
+    await expect(column).toHaveAttribute("data-band-names", "shown");
+    const right = (await column.boundingBox())!;
     for (const box of await names.evaluateAll((spans) =>
       spans.map((span) => {
         const { left, right } = span.getBoundingClientRect();
         return { left, right };
       }),
     )) {
-      expect(box.right).toBeLessThanOrEqual(left);
       expect(box.left).toBeGreaterThanOrEqual(0);
+      expect(box.right).toBeLessThanOrEqual(right.x + right.width);
     }
+    await page.waitForLoadState("networkidle");
+    await page
+      .locator('[data-week-section="wind"]')
+      .evaluate((el) => scrollTo(0, scrollY + el.getBoundingClientRect().top));
+    const box = (await graph.boundingBox())!;
+    const y = box.y + 80;
+    // On: they fold away, in both sections, and the hours have the width.
+    await swipe(page, { x: box.x + 300, y }, { x: box.x + 100, y });
+    await expect(column).toHaveAttribute("data-band-names", "folded");
+    await expect(waveColumn).toHaveAttribute("data-band-names", "folded");
+    await expect
+      .poll(async () => (await column.boundingBox())!.x + right.width)
+      .toBeLessThanOrEqual(right.x + 1);
+    // Back: they come back over the hours.
+    await swipe(page, { x: box.x + 100, y }, { x: box.x + 200, y });
+    await expect(column).toHaveAttribute("data-band-names", "shown");
+    await expect(waveColumn).toHaveAttribute("data-band-names", "shown");
+    await expect
+      .poll(async () => (await column.boundingBox())!.x)
+      .toBe(right.x);
   });
 
   test("a finger reads the hour at the playhead, and a tap asks a row for its label", async ({

@@ -124,14 +124,3 @@ export function waveStars(hour: WaveHour): WaveRating | null {
     reasons,
   };
 }
-
-/** What each reason says, in a tip. */
-export const WAVE_REASON: Record<WaveReason, string> = {
-  chop: "Short period, chop rather than swell",
-  "too-small": "Too small to ride",
-  small: "Small, three stars at most",
-  sheltered: "The swell runs past the beach",
-  angled: "The swell comes in at an angle, 1 star off",
-  clean: "The wind holds the faces up, 1 star on",
-  messy: "The wind blows onto the waves, 1 star off",
-};

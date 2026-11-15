@@ -1495,4 +1495,15 @@ the wind's pink (`.lt-wave.ws1…5`), and neutral with none; a card's Waves bar
 carries them as a strip along its foot, as the sky carries the rain; the
 phone's peek gives them after the sea's figures; and the spot page's Waves
 section is headed by their strip, as the Wind section is by the stars, the
-hour's label giving the stars and why.
+hour's label giving the stars.
+
+**2026-11-15 — A hover shows the data, never an explanation of it.** The
+owner: "hovering over data should only show the data. It shouldn't explain
+the data." The spot page's hour labels give the figures alone: the wave stars
+without their reason, an hour with no wind stars as "No stars" without the
+reason, and the gust factor as its figure without what it costs (in the
+label and in the table's cell). The graphs no longer mark where the models
+change: the wind's and the waves' "<model> from here" lines and the Wave
+blend's "<model> ends" marks are gone, and each model's line simply stops
+where its run does. This replaces the dotted run-end mark of 2026-11-04 and
+the reason in the wave stars' label of the entry above.

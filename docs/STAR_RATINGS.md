@@ -489,7 +489,7 @@ They are drawn in their own leaf green, pale to deep, one star to five
 (`--color-wave-stars-1…5`), never the wind's pink nor the sea's height ramp:
 the finder's pills with Waves on, a strip along the foot of a card's Waves
 bar, the phone's peek beside the sea, and a strip heading the spot page's
-Waves section with the stars and the first reason in the hour's label.
+Waves section with the stars in the hour's label.
 
 ## What would make it better next
 

@@ -280,21 +280,6 @@ export function waveWeek(
   return { rows: out, lines, blended };
 }
 
-/** Where the headline's model changes, and to which: "GFS-Wave from here". */
-export function waveHandovers(
-  rows: readonly { time: number }[],
-  week: WaveWeek,
-): { time: number; to: string }[] {
-  const out: { time: number; to: string }[] = [];
-  let last: string | null = null;
-  week.rows.forEach((row, i) => {
-    const lead = row?.lead ?? null;
-    if (lead && last && lead !== last) out.push({ time: rows[i].time, to: lead });
-    if (lead) last = lead;
-  });
-  return out;
-}
-
 /** One sea state's partition rows, as the graph names them. */
 export const PART_ROWS = [
   ["swell1", "Swell 1"],

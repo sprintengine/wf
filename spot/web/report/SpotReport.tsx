@@ -2,8 +2,9 @@
  * A riding place as a spot report: the spots around it in a thin strip, its
  * name, then the days, what it is like now on small cards beside a small
  * satellite picture with the chart's loupe, and the graphs, each with the days
- * along its head (or the table), and the spot's own notes. Two faces,
- * sentence-case labels, the stars as stars.
+ * along its head (or the table), then any weather warnings and bathing water
+ * notices, and the spot's own notes. Two faces, sentence-case labels, the
+ * stars as stars.
  */
 import {
   createContext,
@@ -182,7 +183,7 @@ const styles = tv({
     nowQuiet: "font-normal text-ink-2",
     line: "font-body text-prose text-ink-2",
     off: "text-pen",
-    notices: "pb-1",
+    notices: "pt-9",
     sectionHead: "mb-3.5 flex flex-wrap items-center justify-between gap-2.5",
     h2: "m-0 font-body text-lead font-semibold text-ink",
     section: "pt-9",
@@ -781,8 +782,6 @@ export function SpotReport({
           {nearby.length > 0 && (
             <NearbyStrip here={point ? null : spot} readings={nearby} />
           )}
-          {notices && <div className={s.notices()}>{notices}</div>}
-
           <section className="pt-2" aria-labelledby="the-week">
             <h2 className="sr-only" id="the-week">
               The days ahead
@@ -927,6 +926,11 @@ export function SpotReport({
               />
             )}
           </section>
+
+          {/* The warnings and notices come after the wind and the waves,
+              which are what a rider opens the page for; the hours they
+              touch already carry their marks. */}
+          {notices && <div className={s.notices()}>{notices}</div>}
 
           {point ? (
             <PointGuide point={point} />

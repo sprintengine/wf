@@ -4,8 +4,8 @@
  * level's colour, a plain title that says the level in words ("Orange wind
  * warning for Kerry"), its validity, "now" while it is in force, and what it
  * does to the stars, with Met Éireann's kind, areas and words under the
- * chevron. A stormy day can bring four or five, and the forecast they bear on
- * must still be on the first screen (issue 219). Where an orange or red one
+ * chevron, under the wind and the waves (./Notices.tsx). A stormy day can
+ * bring four or five, so each is kept to a line. Where an orange or red one
  * takes an hour's stars, the hour shows its mark instead (force5/src/warnings.ts
  * has the rule, the MCP's `spotForecast` the warnings). Nothing here is shown
  * when the warnings could not be checked: the footer's link to met.ie stays.
@@ -134,7 +134,7 @@ export function WarningNotices({
               title={
                 <>
                   {/* On a phone the kind and its level, the coast it names
-                      under the chevron, so the days stay on the first screen. */}
+                      under the chevron, so each stays a single line. */}
                   <span className="wide:hidden">
                     {warningName({ ...item, marine: false })}
                   </span>

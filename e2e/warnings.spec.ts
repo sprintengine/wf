@@ -279,21 +279,34 @@ for (const { width, height } of [
     await expect(panel).not.toContainText("Status Yellow");
     await expect(panel.getByText(/stars still shown/)).toHaveCount(4);
     // None takes the stars, so two show and the other two fold behind
-    // "more"; the two and the way to the rest are on the first screen, whole.
+    // "more".
     const more = page.locator("[data-notices-more]");
     await expect(items.filter({ visible: true })).toHaveCount(2);
     await expect(more).toHaveText("Show 2 more");
     await expect(more).toHaveAttribute("aria-expanded", "false");
+    // They sit under the wind and the waves and their key, before the
+    // spot's own notes: the forecast is what the page opens on.
+    const group = page.locator("[data-notices]");
+    const week = page.locator('section[aria-labelledby="the-week"]');
+    const weekBox = (await week.boundingBox())!;
+    const groupBox = (await group.boundingBox())!;
+    expect(groupBox.y).toBeGreaterThanOrEqual(weekBox.y + weekBox.height);
+    const spotNotes = page.getByRole("heading", { level: 2, name: "The spot" });
+    expect(groupBox.y + groupBox.height).toBeLessThanOrEqual(
+      (await spotNotes.boundingBox())!.y,
+    );
+    // Scrolled to, the two and the way to the rest fit the width, whole.
+    await group.scrollIntoViewIfNeeded();
     for (const item of [
       ...(await items.filter({ visible: true }).all()),
       more,
     ]) {
       const box = (await item.boundingBox())!;
-      expect(box.y + box.height).toBeLessThanOrEqual(height);
       expect(box.x + box.width).toBeLessThanOrEqual(width);
     }
     const days = page.locator("[data-day-card]").first();
-    const withTwo = (await days.boundingBox())!.y;
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const withFour = (await days.boundingBox())!.y;
     // Pressed, all four, each with its details under the chevron.
     await more.click();
     await expect(more).toHaveAttribute("aria-expanded", "true");
@@ -312,12 +325,12 @@ for (const { width, height } of [
       await page.reload();
       await expect(heading(page)).toBeVisible({ timeout: 30000 });
       await expect(panel).toHaveCount(0);
+      await page.evaluate(() => window.scrollTo(0, 0));
       return (await days.boundingBox())!.y;
     };
-    // Above the cards, two and the way to the rest: four push the forecast
-    // down by less than half a screen.
+    // Under the forecast, four warnings leave the days where they were.
     await shot(page, `spot-page-four-warnings-${width}`);
-    expect(withTwo - (await without())).toBeLessThan(height / 2);
+    expect(Math.abs(withFour - (await without()))).toBeLessThan(1);
   });
 
 test("a warnings file too old to trust shows nothing but the link to met.ie", async ({

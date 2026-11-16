@@ -1,7 +1,6 @@
 /**
  * A riding place as a spot report: the spots around it in a thin strip, its
- * name, then the days and the time slider pinned at the top (TimeSlider.tsx),
- * the chosen hour on small cards beside a small satellite picture with the
+ * name, then the days pinned at the top, the chosen hour on small cards beside a small satellite picture with the
  * chart's loupe, and the graphs, each with the days along its head and the
  * model tabs and the rows' switches over it (or the table), then any weather
  * warnings and bathing water
@@ -171,15 +170,23 @@ import {
   type WavePartHour,
 } from "../../../force5/src/waveBlend";
 import { PhotoLoupe } from "./PhotoLoupe";
-import { sliderHours, sliderIndex, weekStart } from "./slider";
-import { TimeSlider } from "./TimeSlider";
-import { stack, useEased, useOpening, type Eased, type Stack } from "./opening";
+import {
+  EASE_OUT_CSS,
+  OPEN_MS,
+  stack,
+  stillWanted,
+  useEased,
+  useOpening,
+  type Eased,
+  type Stack,
+} from "./opening";
 import {
   besideMark,
   dayCard,
   rowAt,
   smoothPath,
   standIn,
+  weekStart,
   type DayCard,
 } from "./report";
 
@@ -238,10 +245,10 @@ const styles = tv({
     // while they fit, and scroll sideways past it.
     week: "mask-fade-end relative flex min-w-0 flex-1 gap-2 overflow-x-auto scrollbar-none pr-6",
     weekRow: "flex items-center gap-1.5",
-    // The days and the hour, pinned under the site's bar as the page
-    // scrolls, the width of the page (`top` is the bar's height).
+    // The days, pinned under the site's bar as the page scrolls, the width
+    // of the page (`top` is the bar's height).
     whenBar: [
-      "sticky top-16 z-panel -mx-4 flex flex-col gap-2 border-0 border-b border-line bg-ground px-4 pt-2 pb-2.5",
+      "sticky top-16 z-panel -mx-4 border-0 border-b border-line bg-ground px-4 pt-2 pb-2.5",
       "max-wide:top-14 wide:-mx-6 wide:px-6",
     ],
     // The outline round the days the graph has on screen, laid over the
@@ -331,11 +338,12 @@ const styles = tv({
       NO_RING,
     ],
     // The week's two sections, Wind and then Waves, each under a heading:
-    // the Graph | Table switch beside Wind's (and a phone's Model & rows
-    // button at its end), the wave models Waves reads beside Waves'.
+    // the title on the left, and on the right Wind's Graph | Table switch
+    // (a phone's Model & rows button before it), and the wave models Waves
+    // reads. The same in the graphs and the table.
     weekHead:
       "mt-3 mb-1 flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1",
-    weekTitle: "flex items-center gap-3",
+    weekAside: "ml-auto flex min-w-0 items-center gap-2",
     h3: "m-0 font-body text-lead font-semibold text-ink",
     weekSub: "font-body text-body text-ink-muted",
     // The hour's card beside the pointer or under a finger: the hour, then
@@ -723,7 +731,8 @@ export function SpotReport({
     [rows, blendModels, point],
   );
   const [scrollTo, setScrollTo] = useState<WeekMove | null>(null);
-  // An hour picked on the time slider, or now: the graphs go to it.
+  // An hour picked at the top of the page (the next good window): the
+  // graphs go to it.
   const [follow, setFollow] = useState<HourMove | null>(null);
   // The models' blend, said in the Wind blend band alone: the headline wind
   // and the stars stay the one model's own.
@@ -791,8 +800,8 @@ export function SpotReport({
   const heroAtNow = shown === nowRow;
   const heroAt = heroAtNow || !shown ? now : shown.time;
   const dayWindow = useRef<HTMLDivElement>(null);
-  // The day cards and the time slider, pinned under the site's bar; what
-  // else holds to the top of the screen holds under them.
+  // The day cards, pinned under the site's bar; what else holds to the top
+  // of the screen holds under them.
   const [whenBar, setWhenBar] = useState<HTMLDivElement | null>(null);
   const pinnedAt = usePinnedFoot(whenBar);
   // What the page scrolls into view (a jump to the week, the keys' focus)
@@ -804,42 +813,12 @@ export function SpotReport({
       root.style.scrollPaddingTop = "";
     };
   }, [pinnedAt]);
-  // The time slider's hours: the graphs' own, from where the wind starts to
-  // the end of the last day, less the nights where the rider hides them.
-  const sliderWeek = useMemo(
-    () =>
-      sliderHours(rows, {
-        from: weekStart(rows, days[0]?.midnight ?? now, now),
-        to: (days.at(-1)?.midnight ?? now) + 24 * HOUR,
-        dark,
-        midnights: days.map(({ midnight }) => midnight),
-      }),
-    [rows, days, now, dark],
-  );
-  // The slider's tag says the hour its needle is on: Now where that hour
-  // holds now, else its time (with the night hidden, now's night stands on
-  // the next first light, and says so).
-  const sliderHour = sliderWeek[sliderIndex(sliderWeek, heroAt)];
-  const sliderWords =
-    heroAtNow &&
-    (!sliderHour ||
-      (sliderHour.time <= now &&
-        now < sliderHour.time + sliderHour.step * HOUR))
-      ? "Now"
-      : `${dayNames(dublinDate(sliderHour?.time ?? heroAt), sliderHour?.time ?? heroAt).short} ${clock(sliderHour?.time ?? heroAt)}`;
-  /** An hour put under the slider's needle: the page goes to it. */
+  /** An hour picked at the top of the page: the page goes to it. */
   const pickHour = (time: number) => {
     setFocus(time);
     const day = days.findIndex((d) => d.day.date === dublinDate(time));
     if (day >= 0) setDayAt(day);
     setFollow({ time, at: Date.now() });
-  };
-  /** Home on the slider: back to now, as today's card goes. */
-  const pickNow = () => {
-    setFocus(null);
-    const day = days.findIndex((d) => d.day.date === dublinDate(now));
-    if (day >= 0) setDayAt(day);
-    setFollow({ time: null, at: Date.now() });
   };
   // Where the graph puts its arrows, at the end of the strip of days.
   const [arrowsAt, setArrowsAt] = useState<HTMLDivElement | null>(null);
@@ -850,7 +829,7 @@ export function SpotReport({
       value={view}
       onChange={(v) => {
         setView(v);
-        // A graph drawn again does not replay the slider's last move.
+        // A graph drawn again does not replay the last hour picked.
         setFollow(null);
       }}
       options={[
@@ -1091,13 +1070,6 @@ export function SpotReport({
                 </div>
                 <div ref={setArrowsAt} className={s.arrows()} />
               </div>
-              <TimeSlider
-                hours={sliderWeek}
-                time={heroAt}
-                words={sliderWords}
-                onPick={pickHour}
-                onNow={pickNow}
-              />
             </div>
             <div className={s.hero({ pictured: !!picture })} data-hero>
               <div className={s.heroCards()}>
@@ -1185,7 +1157,8 @@ export function SpotReport({
               <HourTable
                 forecast={forecast}
                 switcher={viewSwitch}
-                tools={wide ? modelTabs : sheetButton}
+                aside={sheetButton}
+                modelTabs={wide ? modelTabs : null}
                 rows={days[dayAt]?.day.rows ?? []}
                 date={days[dayAt]?.day.date ?? ""}
                 now={now}
@@ -1803,12 +1776,12 @@ interface WeekMove {
   time: number | null;
 }
 
-/** How long a scroll the slider asked for is its own, not the pointer's. */
+/** How long a scroll the page asked for is its own, not the pointer's. */
 const FOLLOW_MS = 150;
 
-/** An hour picked on the time slider (null: now), when it was picked. */
+/** An hour picked at the top of the page, and when it was picked. */
 interface HourMove {
-  time: number | null;
+  time: number;
   at: number;
 }
 
@@ -2092,6 +2065,33 @@ const nightSpans = (sun: DaySun, midnight: number) =>
     ...(sun.lastLight ? [[sun.lastLight, midnight + 24 * HOUR] as const] : []),
   ] as const;
 
+/**
+ * A section's heading over the week: its title on the left, and what goes
+ * with it on the right (Wind's Graph | Table switch, the wave models), the
+ * same over the graphs and the table, so the switch stays where it is.
+ */
+function WeekHead({
+  id,
+  title,
+  className,
+  children,
+}: {
+  id: string;
+  title: string;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  const s = styles();
+  return (
+    <div className={s.weekHead({ className })}>
+      <h3 className={s.h3()} id={id}>
+        {title}
+      </h3>
+      <div className={s.weekAside()}>{children}</div>
+    </div>
+  );
+}
+
 function Graph({
   rows,
   days,
@@ -2136,7 +2136,7 @@ function Graph({
   /** Changes when the top of the page lets go of the hour picked here. */
   backToNow: number;
   scrollTo: WeekMove | null;
-  /** An hour picked on the time slider, or now: read out and kept in view. */
+  /** An hour picked at the top of the page: read out and kept in view. */
   follow: HourMove | null;
   /** Where what holds to the top of the screen holds: under the pinned bar. */
   pinnedAt: number;
@@ -2181,9 +2181,9 @@ function Graph({
   dayWindow: React.RefObject<HTMLDivElement | null>;
   /** Where the arrows go, at the strip's end. */
   arrowsAt: HTMLDivElement | null;
-  /** The Graph | Table switch, beside the Wind section's title. */
+  /** The Graph | Table switch, at the Wind heading's right. */
   switcher: React.ReactNode;
-  /** At the Wind heading's end: a phone's Model & rows button. */
+  /** In the Wind heading, before the switch: a phone's Model & rows button. */
   aside?: React.ReactNode;
   /** Which rows the rider has switched on (force5.prefs.v1 `spotRows`). */
   rowsOn: Readonly<Record<SpotRowKey, boolean>>;
@@ -2295,8 +2295,17 @@ function Graph({
   const daysShown =
     width < 600 ? 0 : Math.max(3, Math.min(7, Math.floor(width / 340)));
   // A day's width on a desktop is a day's hours, the lit ones alone where
-  // the night is hidden.
-  const dayHours = dark ? hours / Math.max(1, line.spans.length) : 24;
+  // the night is hidden: each whole day's, wherever the hours start, so
+  // another model starting its hours later does not change it.
+  const dayHours = useMemo(() => {
+    if (!dark) return 24;
+    const days = keptSpans(rows, dark)
+      .map((span) => Math.min(end, span.to) - Math.max(dayStart, span.from))
+      .filter((length) => length > 0);
+    return days.length
+      ? days.reduce((a, b) => a + b, 0) / days.length / HOUR
+      : 24;
+  }, [dark, rows, dayStart, end]);
   const px = width < 600 ? 18 : width / (daysShown * dayHours);
   const W = Math.max(width, hours * px);
   const X = useCallback((t: number) => (line.at(t) / HOUR) * px, [line, px]);
@@ -2415,6 +2424,69 @@ function Graph({
     for (const el of scrollers()) el.scrollLeft = left;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [px, !!waves]);
+  // The hours the graph spans change under the rider when another model
+  // starts its hours earlier or later (`weekStart`), or the day turns: every
+  // x along the graph moves by the hours put on or taken off its start. The
+  // hours on screen stay where they are, the scroll moving with them, before
+  // anything is drawn. Where the scroll cannot (the hours that were on
+  // screen are gone, or a phone's playhead stays on its hour and the hours
+  // under it move), what is on screen glides from where it was to its new
+  // place, over the time a bar takes to ease.
+  const timeline = useRef<{
+    X: (t: number) => number;
+    line: Fold;
+    px: number;
+  } | null>(null);
+  useLayoutEffect(() => {
+    const was = timeline.current;
+    timeline.current = { X, line, px };
+    const el = ref.current;
+    // A new width draws the graph afresh, from the opening's own scroll; the
+    // same hours drawn again (the minute ticking on) move nothing.
+    if (!was || !el || was.px !== px) return;
+    const spans = line.spans;
+    if (
+      was.line.spans.length === spans.length &&
+      was.line.spans.every(
+        (span, i) => span.from === spans[i].from && span.to === spans[i].to,
+      )
+    )
+      return;
+    const left = scrolled;
+    const first = line.spans[0]?.from ?? start;
+    // The hour at the screen's left edge, or the graph's new first hour if
+    // that one has gone; on a phone, the hour under the playhead.
+    const held = phone ? shownRow : null;
+    const anchor = held
+      ? held.time
+      : Math.max(first, was.line.time((left / was.px) * HOUR));
+    const xOf = (x: (t: number) => number, p: number) =>
+      held ? x(held.time) + (held.step * p) / 2 : x(anchor);
+    const before = xOf(was.X, was.px) - left;
+    const most = Math.max(0, el.scrollWidth - el.clientWidth);
+    const next = Math.round(
+      Math.min(
+        most,
+        Math.max(
+          0,
+          held ? leftFor(mid(held)) : left + X(anchor) - was.X(anchor),
+        ),
+      ),
+    );
+    const shift = before - (xOf(X, px) - next);
+    if (next === left && Math.abs(shift) < 1) return;
+    handMoved.current = false;
+    lastLeft.current = next;
+    for (const other of scrollers()) other.scrollLeft = next;
+    setScrolled(next);
+    if (Math.abs(shift) < 1 || stillWanted()) return;
+    for (const other of scrollers())
+      other.firstElementChild?.animate(
+        [{ transform: `translateX(${shift}px)` }, { transform: "none" }],
+        { duration: OPEN_MS, easing: EASE_OUT_CSS },
+      );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [X]);
   // With a mouse the hour read out is the one under the pointer, and stays
   // so as a wheel or a trackpad scrolls the hours along under it. Over a
   // section, a card beside the pointer lists that section's models.
@@ -2491,7 +2563,8 @@ function Graph({
     const band = bandAt(at, y - svg.getBoundingClientRect().top);
     return band === null ? null : placeBand(at, row, band);
   };
-  // When the time slider last scrolled the hours (`follow`).
+  // When an hour picked at the top of the page last scrolled the hours
+  // (`follow`).
   const followed = useRef(-Infinity);
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -2525,8 +2598,8 @@ function Graph({
       );
     } else if (
       pointer.current &&
-      // A scroll the slider asked for keeps the slider's hour, not the one
-      // that comes under a pointer resting on the graph.
+      // A scroll the page asked for keeps the hour picked, not the one that
+      // comes under a pointer resting on the graph.
       performance.now() - followed.current > FOLLOW_MS
     ) {
       const row =
@@ -2649,11 +2722,8 @@ function Graph({
   // (`WindBars`): its wind, its gust, whether it has stars (the stars' pink),
   // and whether it is the blend's, with a dot for each model's own wind.
   const blendChosen = chosenModel(rider.starsFrom) === BLEND_MODEL;
-  const windHours = useMemo(
-    () =>
-      rows
-        .filter((r) => r.hour.wind && seen(r))
-        .map((r) => ({ time: r.time, step: r.step })),
+  const graphHours = useMemo(
+    () => rows.filter(seen).map((r) => ({ time: r.time, step: r.step })),
     [rows, seen],
   );
   const windTo = useMemo<WindBarsTo>(
@@ -2727,21 +2797,15 @@ function Graph({
     if (phone) for (const el of scrollers()) el.scrollLeft = leftFor(X(now));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backToNow]);
-  // An hour picked on the time slider: read out here, and kept in view (on a
-  // phone, under the playhead); an hour held stays held, at the new hour.
-  // Now lets go, and goes back to now, as Home does.
+  // An hour picked at the top of the page (the next good window): read out
+  // here, and kept in view (on a phone, under the playhead); an hour held
+  // stays held, at the new hour.
   useEffect(() => {
     const el = ref.current;
     if (!follow || !el) return;
     driver.current = el;
     handMoved.current = false;
     followed.current = performance.now();
-    if (follow.time === null) {
-      release();
-      const left = phone ? leftFor(X(now)) : Math.max(0, X(now) - px);
-      for (const other of scrollers()) other.scrollLeft = left;
-      return;
-    }
     const row = rowIndexAt(rows, follow.time);
     if (row === null) return;
     if (pinned !== null) setPinned(row);
@@ -3732,15 +3796,10 @@ function Graph({
           arrowsAt,
         )}
       <section aria-labelledby="week-wind" data-week-section="wind">
-        <div className={s.weekHead()}>
-          <div className={s.weekTitle()}>
-            <h3 className={s.h3()} id="week-wind">
-              Wind
-            </h3>
-            {switcher}
-          </div>
+        <WeekHead id="week-wind" title="Wind">
           {aside}
-        </div>
+          {switcher}
+        </WeekHead>
         {windTabs}
         <div className={s.gbox()} ref={gbox}>
           {dayHeads("wind")}
@@ -3811,7 +3870,7 @@ function Graph({
                     without drawing it again. */}
                 <g transform={`translate(0 ${wy})`}>
                   <WindBars
-                    hours={windHours}
+                    hours={graphHours}
                     to={windTo}
                     h={wh}
                     X={X}
@@ -4096,16 +4155,13 @@ function Graph({
       </section>
       {waves && waveStack && (
         <section aria-labelledby="week-waves" data-week-section="waves">
-          <div className={s.weekHead({ className: "mt-6" })}>
-            <h3 className={s.h3()} id="week-waves">
-              Waves
-            </h3>
+          <WeekHead id="week-waves" title="Waves" className="mt-6">
             {waveModels && (
               <span className={s.weekSub()}>
                 {wide ? waveModels : `${waves.lines.length} models`}
               </span>
             )}
-          </div>
+          </WeekHead>
           {waveTabs}
           <div className={s.gbox()} ref={waveBox}>
             {dayHeads("waves")}
@@ -4873,7 +4929,9 @@ interface WindBarsTo {
  * hour is the blend's, a dot in each model's colour stands at its own wind
  * on the bar. Drawn from the row's top, and moved there whole, so a row
  * folding above it moves it without drawing it again; when the model or the
- * hours change, every bar and dot eases from where it stood (`useEased`).
+ * hours change, every bar and dot eases from where it stood (`useEased`),
+ * and an hour one model has and the other has not grows from the foot or
+ * goes down to it. `hours` is every hour on the graph, with a bar or not.
  */
 const WindBars = memo(function WindBars({
   hours,
@@ -4889,13 +4947,13 @@ const WindBars = memo(function WindBars({
   X: (t: number) => number;
   px: number;
 }) {
-  const at = useEased(to);
+  const at = useEased(to, true);
   const gap = px >= 12 ? 2 : 1;
   const dot = px >= 14 ? 2.4 : 1.8;
   return (
     <g data-wind-bars>
       {hours.map((hour) => {
-        const v = at.hours[hour.time] ?? to.hours[hour.time];
+        const v = at.hours[hour.time];
         if (!v) return null;
         const [kn, gust, stars] = v;
         const x = X(hour.time) + gap / 2;
@@ -4903,7 +4961,7 @@ const WindBars = memo(function WindBars({
         const top = windY(kn, h);
         const rx = Math.min(2, w / 3);
         return (
-          <g key={hour.time}>
+          <g key={hour.time} data-bar-hour={hour.time}>
             {gust !== null && gust > kn && (
               <rect
                 x={x}
@@ -4953,7 +5011,7 @@ const WindBars = memo(function WindBars({
       {Object.entries(at.models).map(([id, points]) => (
         <g key={id} data-model-dots={id}>
           {hours.map((hour) => {
-            const dots = (at.hours[hour.time] ?? to.hours[hour.time])?.[3];
+            const dots = at.hours[hour.time]?.[3];
             const kn = points[hour.time];
             return dots && kn !== undefined ? (
               <circle
@@ -4983,7 +5041,8 @@ type WaveBarsTo = Record<string, readonly [m: number, swell: number | null]>;
  * (the lead model's, or the blend's), the swell below and the wind sea above
  * it, in the shares of the sea they carry; one colour where the model does
  * not split the sea. Drawn from the row's top and moved there whole, as the
- * wind's bars are; `most` is the row's scale, eased with the others.
+ * wind's bars are, an hour that comes or goes growing or shrinking at the
+ * foot; `most` is the row's scale, eased with the others.
  */
 const WaveBars = memo(function WaveBars({
   hours,
@@ -5000,13 +5059,13 @@ const WaveBars = memo(function WaveBars({
   X: (t: number) => number;
   px: number;
 }) {
-  const at = useEased(to);
+  const at = useEased(to, true);
   const gap = px >= 12 ? 2 : 1;
   const HY = (m: number) => h - (Math.min(m, most) / most) * (h - 4);
   return (
     <g data-wave-bars>
       {hours.map((hour) => {
-        const v = at[hour.time] ?? to[hour.time];
+        const v = at[hour.time];
         if (!v) return null;
         const [m, share] = v;
         const x = X(hour.time) + gap / 2;
@@ -5015,7 +5074,7 @@ const WaveBars = memo(function WaveBars({
         const rx = Math.min(2, w / 3);
         const split = share === null ? null : top + (h - top) * (1 - share);
         return (
-          <g key={hour.time}>
+          <g key={hour.time} data-bar-hour={hour.time}>
             <rect
               x={x}
               y={top}
@@ -5520,10 +5579,11 @@ function WaveBands({
   }, [at, rows, waves, seen]);
   const eased = useEased(easedTo);
   const most = eased.most;
-  // The sea's bars, each its hour's whole height, the swell under the wind sea.
+  // The sea's bars, each its hour's whole height, the swell under the wind
+  // sea; on every hour of the graph, so one going has its place to go from.
   const seaHours = useMemo(
-    () => at.map((p) => ({ time: p.row.time, step: p.row.step })),
-    [at],
+    () => rows.filter(seen).map((row) => ({ time: row.time, step: row.step })),
+    [rows, seen],
   );
   const seaTo = useMemo(
     () =>
@@ -5927,7 +5987,8 @@ function HourTable({
   rated,
   rain,
   switcher,
-  tools,
+  aside = null,
+  modelTabs = null,
 }: {
   forecast: SpotForecast;
   rows: SpotRow[];
@@ -5939,25 +6000,28 @@ function HourTable({
   /** False at a point on the open water: no stars, no wing, no launch. */
   rated: boolean;
   rain: ReadonlyMap<number, number>;
-  /** The Graph | Table switch, over the table as it is beside Wind's title. */
+  /** The Graph | Table switch, at the Wind heading's right, as over the graphs. */
   switcher: React.ReactNode;
+  /** In the Wind heading, before the switch: a phone's Model & rows button. */
+  aside?: React.ReactNode;
   /**
-   * The model tabs (a phone's Model & rows button), over the table: the
-   * model moves its wind and stars. The rows' switches are the graphs'; the
-   * table always gives every column.
+   * The model tabs, on a desktop, under the heading: the model moves the
+   * table's wind and stars. The rows' switches are the graphs'; the table
+   * always gives every column.
    */
-  tools?: React.ReactNode;
+  modelTabs?: React.ReactNode;
 }) {
   const speed = useSpeed();
   const heights = useHeights();
   const s = styles();
   const light = rows.filter((r) => r.hour.daylight);
   return (
-    <div className="mt-3 grid gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">{tools}</div>
+    <section aria-labelledby="week-wind" data-week-section="table">
+      <WeekHead id="week-wind" title="Wind">
+        {aside}
         {switcher}
-      </div>
+      </WeekHead>
+      {modelTabs && <div className={s.tabsRow()}>{modelTabs}</div>}
       <div className="overflow-x-auto">
         <table className={s.table()} data-hour-table>
           <thead>
@@ -6084,7 +6148,7 @@ function HourTable({
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   );
 }
 

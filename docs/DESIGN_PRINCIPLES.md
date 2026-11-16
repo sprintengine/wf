@@ -1624,3 +1624,34 @@ its direction, height and period, then under a rule the whole sea; on the
 wave Models row, each model and the blend. It is still the data alone (the
 entry of 2026-11-15 above), and replaces what the label of 2026-11-08 says
 row by row.
+
+**2026-11-16 — No time slider on the spot page; one heading over the Wind
+graph and table; a model chosen eases.** Three corrections to the redesign
+above, at the owner's request after it shipped.
+
+The time slider under the pinned day cards (the entry of 2026-11-15) is
+removed: the owner found it served little purpose. The day cards stay pinned
+under the site's bar, and the hour is chosen as before everywhere else: the
+pointer on a graph, a held hour, a phone's playhead, a day card (today's back
+to now) and the Next good window. The graphs' cursor, the playhead, the
+picture's loupe and the hour's cards follow it as they did. Where the
+earlier entries say the slider moves or follows the hour, read these.
+
+The Wind heading reads the same over the graphs and the table: "Wind" on
+the left, the Graph | Table switch on the right (a phone's Model & rows
+button just before it), and on a desktop the model tabs under it. Before, the
+table dropped the title and moved the switch to the end of the tabs' row.
+The Waves heading is laid out the same way, the wave models on its right.
+
+Choosing another model eases as switching a row does. The models' runs start
+at different hours, so the hours the graph spans start earlier or later with
+the model (the hours start where the wind does); before, every bar, figure
+and day name moved along by the hours put on or taken off at once, and the
+graph seemed to jump to another screen. Now the hours on screen stay where
+they are while their bars ease to the new model's, the hours put on grow
+from the foot and those taken off go down to it. Where the hours that were
+on screen are gone, or on a phone, where the playhead stays on its hour,
+what is on screen glides to its new place over the same half second. A
+day's width with the night hidden is a whole day's lit hours, so it no
+longer changes with the model. With less motion asked for, the new model is
+drawn at once, still in place.

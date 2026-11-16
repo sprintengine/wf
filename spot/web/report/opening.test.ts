@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { between, easeOut, sameEased, stack } from "./opening";
+import { between, easeOut, sameEased, stack, zeroed } from "./opening";
 
 const BANDS = [
   ["a", 20, 8],
@@ -79,6 +79,29 @@ describe("a value part way to the next", () => {
     expect(between(from, to, 0.5)).toEqual({ 11: 8, 12: 3 });
     expect(between([1, 2], [3, 4, 5], 0.5)).toEqual([2, 3, 5]);
     expect(between(4, null, 0.5)).toBeNull();
+  });
+
+  it("grows what comes from nothing and shrinks what goes, where asked", () => {
+    // An hour one model has and the other has not: its bar grows from the
+    // foot, or goes down to it and is gone at the end.
+    const from = { 10: [5, 8], 11: [7, null] };
+    const to = { 11: [9, 12], 12: [4, null] };
+    expect(between(from, to, 0.5, true)).toEqual({
+      10: [2.5, 4],
+      11: [8, 12],
+      12: [2, null],
+    });
+    expect(between(from, to, 0, true)).toEqual({
+      10: [5, 8],
+      11: [7, 12],
+      12: [0, null],
+    });
+    expect(between(from, to, 1, true)).toBe(to);
+    // Nested records too: a model's dots that come and go.
+    expect(
+      between({ ecmwf: { 1: 10 } }, { harmonie: { 1: 20 } }, 0.5, true),
+    ).toEqual({ ecmwf: { 1: 5 }, harmonie: { 1: 10 } });
+    expect(zeroed({ a: [3, null], b: 2 })).toEqual({ a: [0, null], b: 0 });
   });
 
   it("knows a value the same, number for number, from one that moved", () => {

@@ -50,6 +50,25 @@ export function besideMark(
   return null;
 }
 
+/**
+ * Where the graphs' hours start: where the wind does, the first hour the
+ * forecast has, or now if that is still to come, and never before the first
+ * day. Today's earlier hours have no forecast to draw.
+ */
+export function weekStart(
+  rows: readonly Pick<SpotRow, "time" | "hour">[],
+  dayStart: number,
+  now: number,
+): number {
+  const firstWind = rows.find((r) => r.hour.wind)?.time ?? null;
+  // Now's row, as `rowAt` finds it: the last to start by now, else the first.
+  let nowHour = rows[0]?.time ?? now;
+  for (const r of rows) if (r.time <= now) nowHour = r.time;
+  return firstWind === null
+    ? dayStart
+    : Math.max(dayStart, Math.min(firstWind, nowHour));
+}
+
 /** The row that covers a moment: the last that starts at or before it. */
 export function rowAt(rows: readonly SpotRow[], time: number): SpotRow | null {
   let at: SpotRow | null = null;

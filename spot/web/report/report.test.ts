@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayCard, rowAt, smoothPath } from "./report";
+import { dayCard, rowAt, smoothPath, weekStart } from "./report";
 
 const HOUR = 3600000;
 const row = (time: number) => ({ time }) as never;
@@ -10,6 +10,23 @@ describe("the spot report's sums", () => {
     expect(rowAt(rows, 1.5 * HOUR)).toBe(rows[1]);
     expect(rowAt(rows, -5)).toBe(rows[0]);
     expect(rowAt([], 0)).toBeNull();
+  });
+
+  it("starts the week where the wind does, or at now's hour if that is earlier", () => {
+    const wind = (h: number, kn: number | null = 12) =>
+      ({
+        time: h * HOUR,
+        hour: { wind: kn === null ? null : { wind_kn: kn } },
+      }) as never;
+    const rows = [wind(0, null), wind(1, null), wind(2), wind(3)];
+    // The wind starts at 02:00, now is later: from the wind.
+    expect(weekStart(rows, 0, 3.5 * HOUR)).toBe(2 * HOUR);
+    // Now is before the wind starts: from now's hour.
+    expect(weekStart(rows, 0, 1.2 * HOUR)).toBe(1 * HOUR);
+    // Never before the first day.
+    expect(weekStart(rows, 1.5 * HOUR, 0)).toBe(1.5 * HOUR);
+    // No wind at all: the first day's start.
+    expect(weekStart([wind(0, null)], 0, 5 * HOUR)).toBe(0);
   });
 
   it("draws a curve that passes through every point", () => {

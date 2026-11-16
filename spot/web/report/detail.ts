@@ -102,8 +102,14 @@ export function rowRain(
 /** One model's own wind across the week, a reading per row it reaches. */
 export interface ModelSeries {
   id: string;
-  /** Each row it reaches: its own wind, and the way it comes from. */
-  points: { time: number; step: number; kn: number; from: number }[];
+  /** Each row it reaches: its own wind and gust, and the way it comes from. */
+  points: {
+    time: number;
+    step: number;
+    kn: number;
+    gust: number | null;
+    from: number;
+  }[];
 }
 
 /**
@@ -124,6 +130,7 @@ export function modelSeries(
               time: row.time,
               step: row.step,
               kn: own.wind_kn,
+              gust: own.gust_kn ?? null,
               from: own.direction_deg,
             },
           ]

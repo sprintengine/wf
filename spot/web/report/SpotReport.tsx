@@ -10,6 +10,8 @@
  */
 import {
   createContext,
+  memo,
+  useCallback,
   useContext,
   useEffect,
   useId,
@@ -154,6 +156,7 @@ import { WAVE_BLEND, waveLeadOrder } from "../../../force5/src/waves";
 import {
   PART_ROWS,
   partOf,
+  swellShare,
   waveWeek,
   windBlend,
   type PartRow,
@@ -170,7 +173,7 @@ import {
 import { PhotoLoupe } from "./PhotoLoupe";
 import { sliderHours, sliderIndex, weekStart } from "./slider";
 import { TimeSlider } from "./TimeSlider";
-import { stack, useOpening, type Stack } from "./opening";
+import { stack, useEased, useOpening, type Eased, type Stack } from "./opening";
 import {
   besideMark,
   dayCard,
@@ -335,15 +338,26 @@ const styles = tv({
     weekTitle: "flex items-center gap-3",
     h3: "m-0 font-body text-lead font-semibold text-ink",
     weekSub: "font-body text-body text-ink-muted",
-    // The small label beside the pointer or under a finger: the hour, then
-    // what the row under it says that is not easily read from the screen.
+    // The hour's card beside the pointer or under a finger: the hour, then
+    // the row under it broken down, a line each, in three columns.
     hourLabel: [
-      "pointer-events-none absolute z-6 grid w-max max-w-52 -translate-y-1/2 gap-px rounded-control bg-ground px-2 py-1 shadow-float inset-ring-1 inset-ring-line",
+      "pointer-events-none absolute z-6 grid w-max max-w-72 -translate-y-1/2 gap-x-3 gap-y-px rounded-control bg-ground px-2.5 py-1.5 shadow-float inset-ring-1 inset-ring-line *:col-span-full",
       "font-body text-label text-ink tabular-nums",
     ],
     hourLabelLine: "flex items-center gap-1.5",
     hourLabelQuiet: "font-normal text-ink-2",
-    hourLabelModel: "flex items-center gap-1.5",
+    // Its head: the hour, and what the hour is like on its right.
+    cardTop: "mb-0.5 flex items-center justify-between gap-4 whitespace-nowrap",
+    cardSub: "min-w-0 truncate font-normal text-ink-muted",
+    // A line of it, on one line whatever its width, in the card's three
+    // columns (`CARD_COLUMNS`): the name, the figure, and the gust or the
+    // period in a smaller, quieter column of its own.
+    cardRow: "grid grid-cols-subgrid items-center whitespace-nowrap",
+    cardRowName: "flex min-w-0 items-center gap-1.5 font-normal text-ink-2",
+    cardRowFigure: "text-right font-semibold text-ink",
+    cardRowAside: "font-normal text-caption text-ink-muted",
+    // The rule over the hour's own total.
+    cardRule: "my-0.5 h-px bg-line",
     sky: "pointer-events-none absolute left-0 flex items-center gap-1 rounded-control font-body text-caption text-ink-2",
     skyNight: "halo-text opacity-50",
     // The key under the graph: its groups in a row, each a small heading
@@ -1959,6 +1973,8 @@ const WIND_BANDS = [
   ["current", 38, 8],
 ] as const;
 type WindBand = (typeof WIND_BANDS)[number][0];
+/** The wind's bands, whose card is the hour's wind, model by model. */
+const WIND_CARD = new Set<string>(["stars", "wind", "dir", "blend"]);
 const WIND_NAME: Record<WindBand, string> = {
   stars: "Stars",
   wind: "Wind",
@@ -2257,9 +2273,15 @@ function Graph({
         : unfolded(start, end),
     [dark, rows, start, end],
   );
-  /** Whether a row is drawn: all of them, or those before dark alone. */
-  const seen = (r: Pick<SpotRow, "time">) =>
-    r.time >= start && (!dark || line.kept(r.time));
+  /**
+   * Whether a row is drawn: all of them, or those before dark alone. The same
+   * function while the hours are, so what is worked out from it is kept.
+   */
+  const seen = useCallback(
+    (r: Pick<SpotRow, "time">) =>
+      r.time >= start && (!dark || line.kept(r.time)),
+    [start, dark, line],
+  );
   /** Where a line through the hours breaks: across a night left out. */
   const apart = useMemo(() => {
     if (!dark) return () => false;
@@ -2277,7 +2299,7 @@ function Graph({
   const dayHours = dark ? hours / Math.max(1, line.spans.length) : 24;
   const px = width < 600 ? 18 : width / (daysShown * dayHours);
   const W = Math.max(width, hours * px);
-  const X = (t: number) => (line.at(t) / HOUR) * px;
+  const X = useCallback((t: number) => (line.at(t) / HOUR) * px, [line, px]);
   /**
    * Whether a day has any of the graph: with the night left out, a day whose
    * light is all gone (tonight, the page opened after dark) has none, and
@@ -2405,10 +2427,21 @@ function Graph({
     section: Section;
     band: string;
     left: number;
+    /** Level with the band's middle, where the card's middle stands. */
     top: number;
+    /** The graph's height, inside which the whole card is kept. */
+    limit: number;
     /** Laid to the left of the hour, out of the way of the graph's edge. */
     flip: boolean;
   } | null>(null);
+  // The card's own height as drawn, which a long card (every model, then the
+  // stars) needs to stay inside the graph rather than over the tabs above.
+  const cardEl = useRef<HTMLDivElement>(null);
+  const [cardHeight, setCardHeight] = useState(0);
+  useLayoutEffect(() => {
+    const h = cardEl.current?.offsetHeight ?? 0;
+    if (h !== cardHeight) setCardHeight(h);
+  });
   /** A section's bands, top to bottom, each with its place. */
   const bandsOf = (at: Section) => {
     const stacked: Partial<Record<string, readonly [number, number]>> =
@@ -2447,7 +2480,8 @@ function Graph({
       section: at,
       band,
       left: flip ? v.left + X(r.time) - b.left - LABEL_GAP : right + LABEL_GAP,
-      top: Math.max(4, Math.min(middle, b.height - 20)),
+      top: middle,
+      limit: b.height,
       flip,
     };
   };
@@ -2584,7 +2618,7 @@ function Graph({
   };
   const windRows = rows.filter((r) => r.hour.wind && seen(r));
   const [wy, wh] = ROW.wind!;
-  const Y = (k: number) => wy + wh - (Math.min(k, 36) / 36) * wh;
+  const Y = (k: number) => wy + windY(k, wh);
   /** Hours in runs, each broken where a night is left out between two. */
   const runs = <T extends { time: number }>(items: readonly T[]): T[][] => {
     const out: T[][] = [];
@@ -2611,34 +2645,47 @@ function Graph({
         .join(""),
     };
   };
-  /** The band between a low and a high through each run. */
-  const between = <T extends { time: number }>(
-    items: readonly T[],
-    low: (item: T) => readonly [number, number],
-    high: (item: T) => readonly [number, number],
-  ) =>
-    runs(items)
-      .map((run) => {
-        const top = run.map(high);
-        const bot = run.map(low).reverse();
-        return `${smoothPath(top)}L${smoothPath(bot).slice(1)}Z`;
-      })
-      .join("");
-  const mean = traced(
-    windRows,
-    (r) => [mid(r), Y(r.hour.wind!.wind_kn)],
-    wy + wh,
+  // Each hour's bar on the Wind row, eased as the model or the hours change
+  // (`WindBars`): its wind, its gust, whether it has stars (the stars' pink),
+  // and whether it is the blend's, with a dot for each model's own wind.
+  const blendChosen = chosenModel(rider.starsFrom) === BLEND_MODEL;
+  const windHours = useMemo(
+    () =>
+      rows
+        .filter((r) => r.hour.wind && seen(r))
+        .map((r) => ({ time: r.time, step: r.step })),
+    [rows, seen],
   );
-  const spread = between(
-    windRows,
-    (r) => [mid(r), Y(r.hour.wind!.min_kn)],
-    (r) => [mid(r), Y(r.hour.wind!.max_kn)],
+  const windTo = useMemo<WindBarsTo>(
+    () => ({
+      hours: Object.fromEntries(
+        rows
+          .filter((r) => r.hour.wind && seen(r))
+          .map((r) => {
+            const w = r.hour.wind!;
+            const lead = w.lead ?? (blendChosen ? BLEND_MODEL : "");
+            return [
+              r.time,
+              [
+                w.wind_kn,
+                w.gust_kn,
+                r.rating?.stars ? 1 : 0,
+                lead === BLEND_MODEL && models.length > 1 ? 1 : 0,
+              ],
+            ];
+          }),
+      ),
+      models: Object.fromEntries(
+        models.map((m) => [
+          m.id,
+          Object.fromEntries(
+            m.points.filter(seen).map((p) => [p.time, p.kn] as const),
+          ),
+        ]),
+      ),
+    }),
+    [rows, seen, models, blendChosen],
   );
-  const gust = traced(
-    windRows.filter((r) => r.hour.wind!.gust_kn !== null),
-    (r) => [mid(r), Y(r.hour.wind!.gust_kn!)],
-    wy + wh,
-  ).line;
   // The wind measured at the paired station, hour by hour up to now, where
   // the graph's hours are: each reading is the mean of the hour that ends
   // at its time, so it is drawn at that hour's middle, never past now. A
@@ -3135,244 +3182,325 @@ function Graph({
     )
       ? "halo"
       : "";
-  /** What the label says for a row of the Wind section at the hour. */
+  /** The card's head: the hour, and on its right what the hour is like. */
+  const cardHead = (sub: React.ReactNode) => (
+    <span className={s.cardTop()}>
+      <span className="font-semibold" data-card-hour>
+        {hourWords}
+      </span>
+      {sub && <span className={s.cardSub()}>{sub}</span>}
+    </span>
+  );
+  /**
+   * What the card says for a band of the Wind section at the hour. On the
+   * wind's bands, a line per model ("ECMWF 12 g21") where the hour is the
+   * blend's (or the band is the models'), then under a rule the hour's own
+   * wind, the blend's or the chosen model's; on the sky and the rain, the
+   * air, how it feels, the rain and the cloud; on the tide and the current,
+   * the tide, its next turn, the current and the launch.
+   */
   const windLabel = (band: WindBand, r: SpotRow): React.ReactNode => {
-    if (band === "stars") {
-      const taken = r.rating ? null : standIn(r);
-      if (r.rating?.stars)
-        return (
-          <span className={s.hourLabelLine()}>
-            <Stars n={r.rating.stars} size={12} />
-            <span className={s.hourLabelQuiet()}>
-              wing {r.rating.wing.own ?? r.rating.wing.recommended} m²
-            </span>
-          </span>
-        );
-      if (taken)
-        return <NoticeMark level={taken.level}>{taken.word}</NoticeMark>;
-      return (
-        <span className={s.hourLabelQuiet()}>
-          {r.hour.daylight ? "No stars" : dark ? "Twilight" : "Dark"}
-        </span>
-      );
-    }
-    if (band === "wind" || band === "dir") {
+    const w = r.hour.wind;
+    if (WIND_CARD.has(band)) {
       const atNow = r === rowAt(rows, now) ? nowMeasured : null;
-      const w = r.hour.wind;
-      const kn = atNow ? atNow.reading.windKn : w?.wind_kn;
-      if (kn === undefined)
-        return <span className={s.hourLabelQuiet()}>No wind reading</span>;
-      const raw = atNow ? atNow.reading.gustKn : (w?.gust_kn ?? null);
-      const from = atNow ? atNow.reading.from : (w?.direction_deg ?? null);
-      const shownGust = speed.gust(kn, raw);
+      const from = w?.direction_deg ?? null;
+      const shore = w ? shoreWord(r.shore) : null;
+      const lead = w?.lead ?? (blendChosen ? BLEND_MODEL : null);
+      const each =
+        (lead === BLEND_MODEL || band === "blend") && models.length > 0;
+      const blended = models.length > 1 ? blend.get(r.time) : undefined;
+      const gustOf = (kn: number, gust: number | null) => {
+        const g = speed.gust(kn, gust);
+        return g === null ? "" : `g${speed.say(g)}`;
+      };
       const factor = w ? gustReading(w.wind_kn, w.gust_kn, rider) : null;
+      const taken = band === "stars" && !r.rating ? standIn(r) : null;
       return (
         <>
-          <span className={s.hourLabelLine()}>
-            {from !== null && (
-              <svg
-                width={12}
-                height={12}
-                viewBox="-8 -8 16 16"
-                aria-hidden="true"
-              >
-                <path
-                  d={ARROW}
-                  transform={`rotate(${from + 180})`}
-                  className="fill-none stroke-ink"
-                  strokeWidth={1.8}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-            <b className="font-semibold">
-              {speed.say(kn)}
-              {shownGust !== null && (
-                <span className="text-gust-ink"> g{speed.say(shownGust)}</span>
-              )}{" "}
-              {speed.unit}
-            </b>
-            {from !== null && (
-              <span className={s.hourLabelQuiet()}>{compass(from)}</span>
-            )}
-          </span>
-          {!atNow && factor && (
-            <span className={s.hourLabelQuiet()} data-card-gust-factor>
-              Gust factor {factor.text}
-            </span>
-          )}
-        </>
-      );
-    }
-    if (band === "blend") {
-      const b = blend.get(r.time);
-      return (
-        <>
-          {models.map((m) => {
-            const p = m.points.find((q) => q.time === r.time);
-            return p ? (
-              <span
-                key={m.id}
-                className={s.hourLabelModel()}
-                data-card-model={m.id}
-              >
-                <ModelMark wind={m.id} />
-                {modelName(m.id)}
-                <b className="ml-auto font-semibold">
-                  {`${speed.say(p.kn)} ${speed.unit}`.trim()}
-                </b>
+          {cardHead(
+            from !== null && (
+              <span className={isOff(r.shore) ? s.off() : undefined}>
+                {[compass(from), shore].filter(Boolean).join(" · ")}
               </span>
-            ) : null;
-          })}
-          {models.length > 1 && b && (
-            <span className={s.hourLabelModel()} data-card-model="blend">
-              <ModelMark blend />
-              Blend
-              <b className="ml-auto font-semibold">
-                {`${speed.say(b.kn)} ${speed.unit}`.trim()}
-              </b>
-            </span>
+            ),
           )}
+          {!w ? (
+            <span className={s.hourLabelQuiet()}>No wind reading</span>
+          ) : (
+            <>
+              {each &&
+                models.map((m) => {
+                  const p = m.points.find((q) => q.time === r.time);
+                  return p ? (
+                    <CardRow
+                      key={m.id}
+                      mark={<ModelMark wind={m.id} dot />}
+                      name={modelName(m.id)}
+                      figure={speed.say(p.kn)}
+                      aside={gustOf(p.kn, p.gust)}
+                      data-card-model={m.id}
+                    />
+                  ) : null;
+                })}
+              {atNow && (
+                <CardRow
+                  mark={<ModelMark measured />}
+                  name="Measured"
+                  figure={speed.say(atNow.reading.windKn)}
+                  aside={gustOf(atNow.reading.windKn, atNow.reading.gustKn)}
+                  data-card-row="measured"
+                />
+              )}
+              {(each || atNow) &&
+                (band !== "blend" || lead === BLEND_MODEL || blended) && (
+                  <span className={s.cardRule()} />
+                )}
+              {band === "blend" && lead !== BLEND_MODEL ? (
+                // The Models row's own total is the blend it draws.
+                blended && (
+                  <CardRow
+                    total
+                    mark={<ModelMark blend />}
+                    name="Blend"
+                    figure={speed.say(blended.kn)}
+                    aside={speed.unit}
+                    data-card-model="blend"
+                    data-card-total
+                  />
+                )
+              ) : (
+                <CardRow
+                  total
+                  name={lead === BLEND_MODEL ? "Blend" : modelName(lead ?? "")}
+                  figure={speed.say(w.wind_kn)}
+                  aside={[gustOf(w.wind_kn, w.gust_kn), speed.unit]
+                    .filter(Boolean)
+                    .join(" ")}
+                  data-card-total
+                />
+              )}
+              {(band === "wind" || band === "dir") && factor && (
+                <span className={s.hourLabelQuiet()} data-card-gust-factor>
+                  Gust factor {factor.text}
+                </span>
+              )}
+            </>
+          )}
+          {band === "stars" &&
+            (r.rating?.stars ? (
+              <span className={s.hourLabelLine()}>
+                <Stars n={r.rating.stars} size={12} />
+                <span className={s.hourLabelQuiet()}>
+                  wing {r.rating.wing.own ?? r.rating.wing.recommended} m²
+                </span>
+              </span>
+            ) : taken ? (
+              <NoticeMark level={taken.level}>{taken.word}</NoticeMark>
+            ) : (
+              <span className={s.hourLabelQuiet()}>
+                {r.hour.daylight ? "No stars" : dark ? "Twilight" : "Dark"}
+              </span>
+            ))}
         </>
       );
     }
-    if (band === "sky") {
-      const w = r.hour.weather;
-      return (
-        <span className={s.hourLabelQuiet()}>
-          {[w?.description, w?.air_c == null ? null : `${Math.round(w.air_c)}°`]
-            .filter(Boolean)
-            .join(", ") || "–"}
-        </span>
-      );
-    }
-    if (band === "rain") {
+    if (band === "sky" || band === "rain") {
+      const sky = r.hour.weather;
       const wet = rowRain(rain, r);
-      return (
-        <span className={s.hourLabelQuiet()}>
-          {wet === null
-            ? "–"
+      const degrees = (c: number | null | undefined) =>
+        c == null ? null : `${Math.round(c)}°`;
+      const lines: [string, string | null, string][] = [
+        ["Air", degrees(sky?.air_c), "air"],
+        ["Feels like", degrees(sky?.feels_like_c), "feels"],
+        [
+          "Rain",
+          wet === null
+            ? null
             : wet < DRY_MM_PER_HOUR
               ? "Dry"
-              : `${wet < 0.1 ? "<0.1" : wet.toFixed(1)} mm/h`}
-        </span>
-      );
-    }
-    if (band === "tide") {
-      const at = r === rowAt(rows, now) ? now : r.time;
-      const height = tideHeightAt(turns, at);
-      const next = turns.find((t) => t.time > at);
-      const depth = depthAt(at);
-      if (height === null && depth === null)
-        return <span className={s.hourLabelQuiet()}>No tide reading</span>;
+              : `${wet < 0.1 ? "<0.1" : wet.toFixed(1)} mm/h`,
+          "rain",
+        ],
+        [
+          "Cloud",
+          sky?.cloud_pct == null ? null : `${Math.round(sky.cloud_pct)}%`,
+          "cloud",
+        ],
+      ];
+      const shown = lines.filter(([, figure]) => figure !== null);
       return (
         <>
-          <span className={s.hourLabelLine()}>
-            {height !== null && (
-              <b className="font-semibold">{height.toFixed(1)} m</b>
-            )}
-            {next && (
-              <span className={s.hourLabelQuiet()}>
-                {next.tide === "high" ? "rising" : "falling"},{" "}
-                {next.tide === "high" ? "high" : "low"} {clock(next.time)}
-              </span>
-            )}
-          </span>
-          {depth !== null && (
-            <span className={s.hourLabelQuiet()}>
-              Launch {depth.toFixed(1)} m
-            </span>
+          {cardHead(sky?.description)}
+          {shown.length ? (
+            shown.map(([name, figure, key]) => (
+              <CardRow
+                key={key}
+                name={name}
+                figure={figure}
+                data-card-row={key}
+              />
+            ))
+          ) : (
+            <span className={s.hourLabelQuiet()}>No weather reading</span>
           )}
         </>
       );
     }
+    // The tide and the current.
+    const at = r === rowAt(rows, now) ? now : r.time;
+    const height = tideHeightAt(turns, at);
+    const next = turns.find((t) => t.time > at);
+    const trend = tideTrend(turns, at);
+    const depth = depthAt(at);
     const reading = current.columns[rows.indexOf(r)];
     return (
-      <span className={s.hourLabelQuiet()}>
-        {reading
-          ? `${currentText(reading.speed, units)}${reading.speed >= MIN_ARROW_MS ? ` to ${compass(reading.towards)}` : ""}`
-          : (current.note ?? "–")}
-      </span>
+      <>
+        {cardHead(trend)}
+        {height === null && depth === null ? (
+          <span className={s.hourLabelQuiet()}>No tide reading</span>
+        ) : (
+          <>
+            {height !== null && (
+              <CardRow
+                name="Tide"
+                figure={`${height.toFixed(1)} m`}
+                data-card-row="tide"
+              />
+            )}
+            {next && height !== null && (
+              <CardRow
+                name={`Next ${next.tide}`}
+                figure={clock(next.time)}
+                data-card-row="turn"
+              />
+            )}
+            {depth !== null && (
+              <CardRow
+                name="Launch"
+                figure={`${depth.toFixed(1)} m`}
+                data-card-row="launch"
+              />
+            )}
+          </>
+        )}
+        {reading ? (
+          <CardRow
+            name={`Current${reading.speed >= MIN_ARROW_MS ? ` · to ${compass(reading.towards)}` : ""}`}
+            figure={currentText(reading.speed, units)}
+            data-card-row="current"
+          />
+        ) : (
+          band === "current" && (
+            <span className={s.hourLabelQuiet()}>{current.note ?? "–"}</span>
+          )
+        )}
+      </>
     );
   };
-  /** What the label says for a row of the Waves section at the hour. */
+  /**
+   * What the card says for a band of the Waves section at the hour: on the
+   * models' band each model's height and the blend's; on every other, each
+   * swell and the wind sea, then under a rule the whole sea.
+   */
   const waveLabel = (band: WaveBand, r: SpotRow): React.ReactNode => {
     const w = waves?.rows[rows.indexOf(r)] ?? null;
-    if (band === "wstars") {
-      const rating = waveRated[rows.indexOf(r)];
-      if (rating?.stars)
-        return (
-          <span className={s.hourLabelLine()}>
-            <Stars n={rating.stars} size={12} waves />
-          </span>
-        );
-      return (
-        <span className={s.hourLabelQuiet()}>
-          {rating || r.hour.daylight ? "No wave stars" : "Dark"}
-        </span>
-      );
-    }
+    const rating = waveRated[rows.indexOf(r)];
+    const head = cardHead(
+      rating?.stars ? (
+        <Stars n={rating.stars} size={11} waves />
+      ) : rating || r.hour.daylight ? (
+        "No wave stars"
+      ) : (
+        "Dark"
+      ),
+    );
     if (band === "wblend") {
       return (
         <>
+          {head}
           {waves?.lines.map((l) => {
             const own = w?.models[l.id];
             return own ? (
-              <span
+              <CardRow
                 key={l.id}
-                className={s.hourLabelModel()}
+                mark={<ModelMark wave={l.id} />}
+                name={waveModelName(l.id)}
+                figure={heights.text(own.height_m)}
                 data-card-model={l.id}
-              >
-                <ModelMark wave={l.id} />
-                {waveModelName(l.id)}
-                <b className="ml-auto font-semibold">
-                  {heights.text(own.height_m)}
-                </b>
-              </span>
+              />
             ) : null;
           })}
           {w?.blendM != null && (
-            <span className={s.hourLabelModel()} data-card-model="blend">
-              <ModelMark blend />
-              Blend
-              <b className="ml-auto font-semibold">{heights.text(w.blendM)}</b>
-            </span>
+            <>
+              <span className={s.cardRule()} />
+              <CardRow
+                total
+                name="Blend"
+                figure={heights.text(w.blendM)}
+                data-card-model="blend"
+              />
+            </>
           )}
         </>
       );
     }
-    if (band in WAVE_PART) {
-      const part = partOf(w, band as PartRow);
-      if (!part)
-        return (
-          <span className={s.hourLabelQuiet()} data-card-part={band}>
-            {PART_ROWS.some(([key]) => partOf(w, key))
-              ? `No ${WAVE_NAME[band].toLowerCase()} this hour`
-              : NO_SWELL_SPLIT}
-          </span>
-        );
-      return (
-        <span className={s.hourLabelLine()} data-card-part={band}>
-          <span className={s.hourLabelQuiet()}>{WAVE_NAME[band]}</span>
-          <b className="font-semibold">
-            <PartLine part={part} />
-          </b>
-        </span>
-      );
-    }
     if (!w || w.heightM === null)
-      return <span className={s.hourLabelQuiet()}>No wave reading</span>;
+      return (
+        <>
+          {head}
+          <span className={s.hourLabelQuiet()}>No wave reading</span>
+        </>
+      );
+    const trains = PART_ROWS.map(([key, name]) => ({
+      key,
+      name,
+      part: partOf(w, key),
+    }));
+    const any = trains.some((t) => t.part);
+    const pointed = band in WAVE_PART ? (band as PartRow) : null;
     return (
       <>
-        <b className="font-semibold">
-          <SeaLine at={w} />
-        </b>
-        {w.lowM !== null && w.highM !== null && w.highM > w.lowM && (
-          <span className={s.hourLabelQuiet()}>
-            Models {heights.range(w.lowM, w.highM)}
+        {head}
+        {trains.map(({ key, name, part }) =>
+          part ? (
+            <CardRow
+              key={key}
+              name={`${name}${part.from !== null ? ` · ${compass(part.from)}` : ""}`}
+              figure={heights.text(part.heightM!)}
+              aside={
+                part.periodS !== null ? `${Math.round(part.periodS)} s` : ""
+              }
+              strong={key === pointed}
+              data-card-part={key}
+            />
+          ) : null,
+        )}
+        {pointed && !partOf(w, pointed) && (
+          <span className={s.hourLabelQuiet()} data-card-part={pointed}>
+            {any
+              ? `No ${WAVE_NAME[pointed].toLowerCase()} this hour`
+              : NO_SWELL_SPLIT}
           </span>
         )}
+        {!pointed && !any && (
+          <span className={s.hourLabelQuiet()}>{NO_SWELL_SPLIT}</span>
+        )}
+        <span className={s.cardRule()} />
+        <CardRow
+          total
+          name={`Sea${w.from !== null ? ` · ${compass(w.from)}` : ""}`}
+          figure={heights.text(w.heightM)}
+          aside={w.periodS !== null ? `${Math.round(w.periodS)} s` : ""}
+          data-card-total
+        />
+        {band === "waves" &&
+          w.lowM !== null &&
+          w.highM !== null &&
+          w.highM > w.lowM && (
+            <span className={s.hourLabelQuiet()}>
+              Models {heights.range(w.lowM, w.highM)}
+            </span>
+          )}
       </>
     );
   };
@@ -3382,14 +3510,21 @@ function Graph({
         className={s.hourLabel({
           className: where.flip ? "-translate-x-full" : undefined,
         })}
-        style={{ left: where.left, top: where.top }}
+        ref={cardEl}
+        style={{
+          left: where.left,
+          // Its middle level with the band, but the whole card inside the
+          // graph: below its top, above its foot where it is short enough.
+          top: Math.max(
+            4 + cardHeight / 2,
+            Math.min(where.top, where.limit - 4 - cardHeight / 2),
+          ),
+          gridTemplateColumns: CARD_COLUMNS,
+        }}
         data-card={at}
         data-card-band={where.band}
         aria-hidden="true"
       >
-        <span className="font-semibold" data-card-hour>
-          {hourWords}
-        </span>
         {at === "wind"
           ? windLabel(where.band as WindBand, shownRow)
           : waveLabel(where.band as WaveBand, shownRow)}
@@ -3564,6 +3699,8 @@ function Graph({
     return () => window.removeEventListener("pointerdown", away);
   }, [phone, card]);
   const waveModels = waves?.lines.map((l) => waveModelName(l.id)).join(", ");
+  // Whether any hour stands its models' dots on its bar.
+  const dotted = Object.values(windTo.hours).some((v) => v[3] > 0);
   return (
     <>
       {arrowsAt &&
@@ -3642,22 +3779,6 @@ function Graph({
                 data-graph-svg
               >
                 <defs>
-                  <linearGradient
-                    id="spot-wind"
-                    gradientUnits="userSpaceOnUse"
-                    x1={0}
-                    x2={W}
-                    y1={0}
-                    y2={0}
-                  >
-                    {windRows.map((r, i) => (
-                      <stop
-                        key={i}
-                        offset={Math.min(1, Math.max(0, mid(r) / W)).toFixed(4)}
-                        stopColor={windCss(r.hour.wind!.wind_kn)}
-                      />
-                    ))}
-                  </linearGradient>
                   {clips("wind")}
                   {deepAt !== null && (
                     <clipPath id="spot-deep">
@@ -3686,32 +3807,17 @@ function Graph({
                     )}
                   </g>
                 )}
-                {spread && (
-                  <path d={spread} className="fill-ink" fillOpacity={0.07} />
-                )}
-                {mean.line && (
-                  <>
-                    <path
-                      d={mean.area}
-                      fill="url(#spot-wind)"
-                      fillOpacity={0.78}
-                    />
-                    <path
-                      d={mean.line}
-                      fill="none"
-                      stroke="url(#spot-wind)"
-                      strokeWidth={2.2}
-                    />
-                  </>
-                )}
-                {gust && (
-                  <path
-                    d={gust}
-                    className="fill-none stroke-gust"
-                    strokeWidth={1.6}
-                    strokeDasharray="4 3"
+                {/* In the band's own place, so a row folding above moves it
+                    without drawing it again. */}
+                <g transform={`translate(0 ${wy})`}>
+                  <WindBars
+                    hours={windHours}
+                    to={windTo}
+                    h={wh}
+                    X={X}
+                    px={px}
                   />
-                )}
+                </g>
                 {readings.length > 0 && (
                   <g data-measured={measured!.station.id}>
                     {/* On a ground-coloured halo, so the gold reads over the
@@ -3922,16 +4028,6 @@ function Graph({
                 />
                 {nightOver(GH)}
                 {marks("wind", ay)}
-                {hoverRow?.hour.wind && (
-                  <circle
-                    cx={mid(hoverRow)}
-                    cy={Y(hoverRow.hour.wind.wind_kn)}
-                    r={4}
-                    fill={windCss(hoverRow.hour.wind.wind_kn)}
-                    className="stroke-ground"
-                    strokeWidth={2}
-                  />
-                )}
               </svg>
               {lower.at.current && current.columns.length === 0 && (
                 // Said once, and kept in view as the hours scroll under it.
@@ -4095,18 +4191,23 @@ function Graph({
       >
         <div className={s.legend()} data-legend>
           <KeyGroup name="Wind">
-            <KeyItem mark="wind">Wind</KeyItem>
+            <KeyItem mark="wind">Wind, an hour a bar</KeyItem>
             <KeyItem mark="gust">Gust</KeyItem>
+            {rated && <KeyItem mark="stars">An hour with stars</KeyItem>}
+            {dotted && (
+              <KeyItem mark="dots">
+                Each model&rsquo;s wind, on the blend
+              </KeyItem>
+            )}
             {readings.length > 0 && (
               <KeyItem mark="measured" data-measured-key>
                 Measured at {pairedName(measured!)}, wind and gust
               </KeyItem>
             )}
-            {/* A point reads one model an hour: nothing to disagree. */}
-            {rated && <KeyItem mark="spread">Where models disagree</KeyItem>}
           </KeyGroup>
-          {/* The key says what is drawn: a row switched off has none. */}
-          {ROW.blend && (
+          {/* The key says what is drawn: a row switched off has none. The
+              models' colours are the dots' too. */}
+          {(ROW.blend || dotted) && (
             <KeyGroup
               name={`Models${speed.unit ? `, ${speed.unit}` : ""}`}
               data-models-legend
@@ -4138,6 +4239,9 @@ function Graph({
                 >
                   Blend
                 </KeyItem>
+              )}
+              {ROW.blend && models.length > 1 && (
+                <KeyItem mark="spread">Where models disagree</KeyItem>
               )}
             </KeyGroup>
           )}
@@ -4177,8 +4281,8 @@ function Graph({
                     ? `Wave height: ${waveModelName(waveModel)}, and the next model past its run`
                     : "Wave height: the finest model at each hour"}
               </KeyItem>
-              {waves.lines.length > 1 && (
-                <KeyItem mark="spread">Where models disagree</KeyItem>
+              {waves.rows.some((w) => w && swellShare(w) !== null) && (
+                <KeyItem mark="windsea">Swell below, wind sea above</KeyItem>
               )}
               {waveStack.at.wdir && (
                 <KeyItem mark="waves">
@@ -4224,6 +4328,9 @@ function Graph({
                     Blend
                   </KeyItem>
                 )}
+                {waves.lines.length > 1 && (
+                  <KeyItem mark="spread">Where models disagree</KeyItem>
+                )}
               </KeyGroup>
             )}
             {PART_ROWS.some(([key]) => waveStack.at[key]) && (
@@ -4260,8 +4367,10 @@ const FOLD_AFTER = 4;
 const WHOLE_DAY_PX = 48;
 /** How near the cursor's tag can stand to the Now tag before Now gives way. */
 const TAG_CLEAR = 64;
+/** The hour card's columns: the names, the figures, the gusts or periods. */
+const CARD_COLUMNS = "1fr auto auto";
 /** The hour label's widest, and its gap from the hour's column, for placing it. */
-const LABEL_WIDTH = 208;
+const LABEL_WIDTH = 256;
 const LABEL_GAP = 10;
 
 /**
@@ -4321,17 +4430,84 @@ function BandNames({
   );
 }
 
-/** A model's line, small, as the graph draws it: in its colour, dashed if it is. */
+/**
+ * A line of the hour's card, all on one line: a mark, a name, the figure,
+ * and in a smaller, quieter column of its own beside it the gust or the
+ * period, so the figures stand in a column down the card. The total, under
+ * the card's rule, is in ink; `strong` is the row under the pointer.
+ */
+function CardRow({
+  mark,
+  name,
+  figure,
+  aside,
+  total = false,
+  strong = false,
+  ...data
+}: {
+  mark?: React.ReactNode;
+  name: React.ReactNode;
+  figure: React.ReactNode;
+  aside?: string;
+  total?: boolean;
+  strong?: boolean;
+  "data-card-model"?: string;
+  "data-card-part"?: string;
+  "data-card-row"?: string;
+  "data-card-total"?: boolean;
+}) {
+  const s = styles();
+  return (
+    <span className={s.cardRow()} {...data}>
+      <span
+        className={s.cardRowName({
+          className: total || strong ? "text-ink" : undefined,
+        })}
+      >
+        {mark}
+        {name}
+      </span>
+      <b className={s.cardRowFigure()}>{figure}</b>
+      <span className={s.cardRowAside()}>{aside}</span>
+    </span>
+  );
+}
+
+/**
+ * A model's line, small, as the graph draws it: in its colour, dashed if it
+ * is; or a wind model's dot, as it stands on the Wind row's bars (`dot`), or
+ * the measured wind's gold dot (`measured`).
+ */
 function ModelMark({
   wind,
   wave,
   blend = false,
+  dot = false,
+  measured = false,
 }: {
   wind?: string;
   wave?: string;
   blend?: boolean;
+  dot?: boolean;
+  measured?: boolean;
 }) {
   const id = wind ?? wave ?? "";
+  if (dot || measured)
+    return (
+      <svg
+        className="size-2 shrink-0 overflow-visible"
+        viewBox="0 0 8 8"
+        aria-hidden="true"
+      >
+        <circle
+          cx={4}
+          cy={4}
+          r={3.5}
+          fill={wind ? modelHue(wind).wind : undefined}
+          className={measured ? "fill-buoy" : undefined}
+        />
+      </svg>
+    );
   return (
     <svg
       className="h-1.5 w-3.5 shrink-0 overflow-visible"
@@ -4357,6 +4533,9 @@ function ModelMark({
 type KeyMarkKind =
   | "wind"
   | "gust"
+  | "stars"
+  | "dots"
+  | "windsea"
   | "measured"
   | "spread"
   | "costs"
@@ -4454,29 +4633,62 @@ function KeyItem({
 
 function KeyMark({ mark }: { mark: KeyMarkKind }) {
   switch (mark) {
+    // The Wind row's bars, as it draws them: the wind, the gust a fainter
+    // part above, in the stars' pink where the hour has stars; a model's dot.
     case "wind":
+    case "stars":
       return (
-        <>
-          <path
-            d="M0 7C4 4 7 5 10 4.5S16 2.5 20 3.5V12H0Z"
-            className="fill-wind-k15"
-            fillOpacity={0.78}
-          />
-          <path
-            d="M0 7C4 4 7 5 10 4.5S16 2.5 20 3.5"
-            className="fill-none stroke-wind-k15"
-            strokeWidth={1.6}
-          />
-        </>
+        <g className={mark === "stars" ? "fill-stars-4" : "fill-line-strong"}>
+          <rect x={1} y={6} width={5} height={6} rx={1} />
+          <rect x={7.5} y={3} width={5} height={9} rx={1} />
+          <rect x={14} y={5} width={5} height={7} rx={1} />
+        </g>
       );
     case "gust":
       return (
-        <path
-          d="M0 6H20"
-          className="fill-none stroke-gust"
-          strokeWidth={1.6}
-          strokeDasharray="4 3"
-        />
+        <>
+          <rect
+            x={7.5}
+            y={0}
+            width={5}
+            height={12}
+            rx={1}
+            className="fill-line-strong/40"
+          />
+          <rect
+            x={7.5}
+            y={5}
+            width={5}
+            height={7}
+            rx={1}
+            className="fill-line-strong"
+          />
+        </>
+      );
+    case "dots":
+      return (
+        <>
+          <rect
+            x={7.5}
+            y={2}
+            width={5}
+            height={10}
+            rx={1}
+            className="fill-line-strong"
+          />
+          <circle
+            cx={10}
+            cy={3.5}
+            r={2.2}
+            className="fill-ink-2 stroke-ground"
+          />
+          <circle
+            cx={10}
+            cy={7.5}
+            r={2.2}
+            className="fill-ink-muted stroke-ground"
+          />
+        </>
       );
     case "measured":
       return (
@@ -4574,17 +4786,38 @@ function KeyMark({ mark }: { mark: KeyMarkKind }) {
           strokeLinecap="round"
         />
       );
+    // The Waves row's bars: the swell below, the wind sea above.
     case "sea":
+    case "windsea":
       return (
-        <rect
-          x={0}
-          y={1}
-          width={20}
-          height={10}
-          rx={2}
-          className="fill-sea-1"
-          fillOpacity={0.9}
-        />
+        <>
+          {[
+            [1, 5, 8],
+            [7.5, 2, 6],
+            [14, 4, 7],
+          ].map(([x, y, split]) => (
+            <g key={x}>
+              <rect
+                x={x}
+                y={y}
+                width={5}
+                height={12 - y}
+                rx={1}
+                className={mark === "sea" ? "fill-depth" : "fill-sea-1"}
+              />
+              {mark === "windsea" && (
+                <rect
+                  x={x}
+                  y={split}
+                  width={5}
+                  height={12 - split}
+                  rx={1}
+                  className="fill-depth"
+                />
+              )}
+            </g>
+          ))}
+        </>
       );
     case "swell":
       return (
@@ -4611,6 +4844,205 @@ function KeyMark({ mark }: { mark: KeyMarkKind }) {
       );
   }
 }
+
+/** The top of the Wind row's scale, in knots: a wind past it is drawn at it. */
+const WIND_TOP = 36;
+/** A wind's height on the Wind row, `h` tall, from the row's top. */
+const windY = (kn: number, h: number) =>
+  h - (Math.min(Math.max(kn, 0), WIND_TOP) / WIND_TOP) * h;
+
+/**
+ * What the Wind row's bars ease (`WindBars`), each by its hour's time: the
+ * wind, the gust (null where none), how far in the stars' pink (1 where the
+ * hour has stars) and how far in the models' dots are (1 where the hour is
+ * the blend's); and each model's own wind, by its id and the hour's time.
+ */
+interface WindBarsTo {
+  [key: string]: Eased;
+  hours: Record<
+    string,
+    readonly [kn: number, gust: number | null, stars: number, dots: number]
+  >;
+  models: Record<string, Record<string, number>>;
+}
+
+/**
+ * The Wind row, an hour a bar, as the data is hourly (a three-hour row is a
+ * bar three hours wide): the wind as the bar, the gust as a fainter part of
+ * it above, the bar in the stars' pink where the hour has stars. Where the
+ * hour is the blend's, a dot in each model's colour stands at its own wind
+ * on the bar. Drawn from the row's top, and moved there whole, so a row
+ * folding above it moves it without drawing it again; when the model or the
+ * hours change, every bar and dot eases from where it stood (`useEased`).
+ */
+const WindBars = memo(function WindBars({
+  hours,
+  to,
+  h,
+  X,
+  px,
+}: {
+  hours: readonly { time: number; step: number }[];
+  to: WindBarsTo;
+  /** The row's height. */
+  h: number;
+  X: (t: number) => number;
+  px: number;
+}) {
+  const at = useEased(to);
+  const gap = px >= 12 ? 2 : 1;
+  const dot = px >= 14 ? 2.4 : 1.8;
+  return (
+    <g data-wind-bars>
+      {hours.map((hour) => {
+        const v = at.hours[hour.time] ?? to.hours[hour.time];
+        if (!v) return null;
+        const [kn, gust, stars] = v;
+        const x = X(hour.time) + gap / 2;
+        const w = Math.max(1, hour.step * px - gap);
+        const top = windY(kn, h);
+        const rx = Math.min(2, w / 3);
+        return (
+          <g key={hour.time}>
+            {gust !== null && gust > kn && (
+              <rect
+                x={x}
+                y={windY(gust, h)}
+                width={w}
+                height={h - windY(gust, h)}
+                rx={rx}
+                className="fill-line-strong/40"
+                data-gust-bar={Math.round(gust)}
+              />
+            )}
+            {gust !== null && gust > kn && stars > 0 && (
+              <rect
+                x={x}
+                y={windY(gust, h)}
+                width={w}
+                height={h - windY(gust, h)}
+                rx={rx}
+                className="fill-stars-4/30"
+                opacity={stars}
+              />
+            )}
+            <rect
+              x={x}
+              y={top}
+              width={w}
+              height={h - top}
+              rx={rx}
+              className="fill-line-strong"
+              data-wind-bar={Math.round(kn)}
+              data-bar-stars={stars >= 1 || undefined}
+            />
+            {stars > 0 && (
+              <rect
+                x={x}
+                y={top}
+                width={w}
+                height={h - top}
+                rx={rx}
+                className="fill-stars-4"
+                opacity={stars}
+              />
+            )}
+          </g>
+        );
+      })}
+      {Object.entries(at.models).map(([id, points]) => (
+        <g key={id} data-model-dots={id}>
+          {hours.map((hour) => {
+            const dots = (at.hours[hour.time] ?? to.hours[hour.time])?.[3];
+            const kn = points[hour.time];
+            return dots && kn !== undefined ? (
+              <circle
+                key={hour.time}
+                cx={X(hour.time) + (hour.step * px) / 2}
+                cy={windY(kn, h)}
+                r={dot}
+                fill={modelHue(id).wind}
+                opacity={dots}
+                className="stroke-ground"
+                strokeWidth={1}
+                data-model-dot={id}
+              />
+            ) : null;
+          })}
+        </g>
+      ))}
+    </g>
+  );
+});
+
+/** What the Waves row's bars ease (`WaveBars`), by each hour's time: its whole sea, and the swell's share of it. */
+type WaveBarsTo = Record<string, readonly [m: number, swell: number | null]>;
+
+/**
+ * The Waves row, an hour a bar on the wind's hours: as high as the whole sea
+ * (the lead model's, or the blend's), the swell below and the wind sea above
+ * it, in the shares of the sea they carry; one colour where the model does
+ * not split the sea. Drawn from the row's top and moved there whole, as the
+ * wind's bars are; `most` is the row's scale, eased with the others.
+ */
+const WaveBars = memo(function WaveBars({
+  hours,
+  to,
+  most,
+  h,
+  X,
+  px,
+}: {
+  hours: readonly { time: number; step: number }[];
+  to: WaveBarsTo;
+  most: number;
+  h: number;
+  X: (t: number) => number;
+  px: number;
+}) {
+  const at = useEased(to);
+  const gap = px >= 12 ? 2 : 1;
+  const HY = (m: number) => h - (Math.min(m, most) / most) * (h - 4);
+  return (
+    <g data-wave-bars>
+      {hours.map((hour) => {
+        const v = at[hour.time] ?? to[hour.time];
+        if (!v) return null;
+        const [m, share] = v;
+        const x = X(hour.time) + gap / 2;
+        const w = Math.max(1, hour.step * px - gap);
+        const top = HY(m);
+        const rx = Math.min(2, w / 3);
+        const split = share === null ? null : top + (h - top) * (1 - share);
+        return (
+          <g key={hour.time}>
+            <rect
+              x={x}
+              y={top}
+              width={w}
+              height={h - top}
+              rx={rx}
+              className={split === null ? "fill-depth/60" : "fill-sea-1"}
+              data-wave-bar={m.toFixed(1)}
+              data-wave-split={split === null ? undefined : share!.toFixed(2)}
+            />
+            {split !== null && (
+              <rect
+                x={x}
+                y={split}
+                width={w}
+                height={h - split}
+                rx={rx}
+                className="fill-depth"
+                data-swell-bar
+              />
+            )}
+          </g>
+        );
+      })}
+    </g>
+  );
+});
 
 /**
  * The wind section's bands under its sky, each a row of the chart's old dock
@@ -4674,6 +5106,36 @@ function LowerBands({
   const third = (r: SpotRow) => dublinHour(r.time) % 3 === 0 && seen(r);
   const caption = "font-body text-caption";
   const hovered = hover === null ? null : rows[hover];
+  // The Models row's scale, on the tens either side of the week's model
+  // winds so the lines fill the band rather than a strip of a scale from
+  // calm to 36 kn, and every model's line and the blend's, each by its
+  // hour's time: eased as the models or the hours change (`useEased`).
+  const modelsTo = useMemo(() => {
+    const kns = models.flatMap((m) => m.points.filter(seen).map((p) => p.kn));
+    const lo = kns.length ? Math.floor(Math.min(...kns) / 10) * 10 : 0;
+    const hi = Math.max(
+      lo + 10,
+      kns.length ? Math.ceil(Math.max(...kns) / 10) * 10 : 20,
+    );
+    return {
+      lo,
+      hi,
+      lines: Object.fromEntries(
+        models.map((m) => [
+          m.id,
+          Object.fromEntries(
+            m.points.filter(seen).map((p) => [p.time, p.kn] as const),
+          ) as Record<string, number>,
+        ]),
+      ),
+      blend: Object.fromEntries(
+        [...blend].map(
+          ([time, b]) => [time, [b.kn, b.low, b.high] as const] as const,
+        ),
+      ) as Record<string, readonly [number, number, number]>,
+    };
+  }, [models, blend, seen]);
+  const eased = useEased(modelsTo);
   /** A line through points in runs, broken where a reading is missing. */
   const lineOf = (
     points: readonly { time: number; step: number }[],
@@ -4751,17 +5213,16 @@ function LowerBands({
       {lower.blend &&
         (() => {
           const [y, h] = lower.blend;
-          // On the tens either side of the week's model winds, so the lines
-          // fill the band rather than a strip of a scale from calm to 36 kn.
-          const kns = models.flatMap((m) =>
-            m.points.filter(seen).map((p) => p.kn),
-          );
-          const lo = kns.length ? Math.floor(Math.min(...kns) / 10) * 10 : 0;
-          const hi = Math.max(
-            lo + 10,
-            kns.length ? Math.ceil(Math.max(...kns) / 10) * 10 : 20,
-          );
-          const MY = (k: number) => y + h - ((k - lo) / (hi - lo)) * h;
+          const { lo, hi } = eased;
+          // Clamped: a model reaching an hour mid-ease lands on its final value
+          // while the scale is still on its way, and must not leave the row.
+          const MY = (k: number) =>
+            y + h - Math.min(1, Math.max(0, (k - lo) / (hi - lo))) * h;
+          // The blend's at an hour, eased: its wind, its low and its high.
+          const at = (t: number) => {
+            const b = blend.get(t)!;
+            return eased.blend[t] ?? [b.kn, b.low, b.high];
+          };
           // The blend's hours, in the rows' order, drawn where two models or
           // more feed it: with one, the blend is that model's own line.
           const blended =
@@ -4775,10 +5236,10 @@ function LowerBands({
                 const flush = () => {
                   if (run.length > 1) {
                     const top = run.map(
-                      (r) => [mid(r), MY(blend.get(r.time)!.high)] as const,
+                      (r) => [mid(r), MY(at(r.time)[2])] as const,
                     );
                     const bot = run
-                      .map((r) => [mid(r), MY(blend.get(r.time)!.low)] as const)
+                      .map((r) => [mid(r), MY(at(r.time)[1])] as const)
                       .reverse();
                     parts.push(
                       `${smoothPath(top)}L${smoothPath(bot).slice(1)}Z`,
@@ -4800,38 +5261,41 @@ function LowerBands({
                 return parts.join("");
               })()
             : "";
-          const blendLine = lineOf(blended, (i) =>
-            MY(blend.get(blended[i].time)!.kn),
-          );
+          const blendLine = lineOf(blended, (i) => MY(at(blended[i].time)[0]));
           return (
             <g
               data-band="wind-blend"
-              data-scale={`${lo}-${hi}`}
+              data-scale={`${modelsTo.lo}-${modelsTo.hi}`}
               {...cut("blend")}
             >
+              {/* The tens of the scale it is going to, each where the
+                  scale moving under it puts it. */}
               {Array.from(
-                { length: (hi - lo) / 10 + 1 },
-                (_, i) => lo + i * 10,
-              ).map((k) => (
-                <g key={k}>
-                  <line
-                    x1={0}
-                    x2={W}
-                    y1={MY(k)}
-                    y2={MY(k)}
-                    className="stroke-line"
-                    strokeDasharray="2 4"
-                  />
-                  <text
-                    x={W - 6}
-                    y={MY(k) - 3}
-                    textAnchor="end"
-                    className={`fill-ink-muted ${caption}`}
-                  >
-                    {speed.say(k)}
-                  </text>
-                </g>
-              ))}
+                { length: (modelsTo.hi - modelsTo.lo) / 10 + 1 },
+                (_, i) => modelsTo.lo + i * 10,
+              )
+                // Only those inside the band as the scale moves under them.
+                .filter((k) => k >= lo - 0.01 && k <= hi + 0.01)
+                .map((k) => (
+                  <g key={k}>
+                    <line
+                      x1={0}
+                      x2={W}
+                      y1={MY(k)}
+                      y2={MY(k)}
+                      className="stroke-line"
+                      strokeDasharray="2 4"
+                    />
+                    <text
+                      x={W - 6}
+                      y={MY(k) - 3}
+                      textAnchor="end"
+                      className={`fill-ink-muted ${caption}`}
+                    >
+                      {speed.say(k)}
+                    </text>
+                  </g>
+                ))}
               {spread && (
                 <path d={spread} className="fill-ink" fillOpacity={0.06} />
               )}
@@ -4842,7 +5306,9 @@ function LowerBands({
                 return (
                   <path
                     key={m.id}
-                    d={lineOf(points, (i) => MY(points[i].kn))}
+                    d={lineOf(points, (i) =>
+                      MY(eased.lines[m.id]?.[points[i].time] ?? points[i].kn),
+                    )}
                     fill="none"
                     stroke={modelHue(m.id).wind}
                     strokeWidth={1.6}
@@ -4993,26 +5459,85 @@ function WaveBands({
   const caption = "font-body text-caption";
   const third = (r: SpotRow) => dublinHour(r.time) % 3 === 0 && seen(r);
   const sixth = (r: SpotRow) => dublinHour(r.time) % 6 === 3 && seen(r);
-  const at = rows
-    .map((row, i) => ({
-      row,
-      w: waves.rows[i],
-      held: waves.rows[i]?.held ?? false,
-    }))
-    .filter(
-      (p): p is { row: SpotRow; w: WaveRow; held: boolean } =>
-        p.w !== null && p.w.heightM !== null && seen(p.row),
-    );
-  // Every wave model's height and the blend's on one scale, in half metres.
-  const top = Math.max(
-    0,
-    ...at.map((p) => p.w.highM ?? p.w.heightM!),
-    ...waves.lines.flatMap((l) => l.points.map((p) => p.m)),
+  const at = useMemo(
+    () =>
+      rows
+        .map((row, i) => ({
+          row,
+          w: waves.rows[i],
+          held: waves.rows[i]?.held ?? false,
+        }))
+        .filter(
+          (p): p is { row: SpotRow; w: WaveRow; held: boolean } =>
+            p.w !== null && p.w.heightM !== null && seen(p.row),
+        ),
+    [rows, waves, seen],
   );
-  const most = Math.max(1.5, Math.ceil(top * 2) / 2);
+  // What eases as the sea's model or the hours change (`useEased`): the
+  // scale, every wave model's line and the blend's, the models' range and
+  // each train's height, each by its hour's time.
+  const easedTo = useMemo(() => {
+    // Every wave model's height and the blend's on one scale, in half metres.
+    const top = Math.max(
+      0,
+      ...at.map((p) => p.w.highM ?? p.w.heightM!),
+      ...waves.lines.flatMap((l) => l.points.map((p) => p.m)),
+    );
+    const byTime = <T extends Eased>(pairs: (readonly [number, T])[]) =>
+      Object.fromEntries(pairs) as Record<string, T>;
+    return {
+      most: Math.max(1.5, Math.ceil(top * 2) / 2),
+      lines: Object.fromEntries(
+        waves.lines.map((l) => [
+          l.id,
+          byTime(l.points.filter(seen).map((p) => [p.time, p.m] as const)),
+        ]),
+      ),
+      blend: byTime(
+        at.flatMap((p) =>
+          p.w.blendM === null ? [] : [[p.row.time, p.w.blendM] as const],
+        ),
+      ),
+      range: byTime(
+        at.flatMap((p) =>
+          p.w.lowM === null || p.w.highM === null
+            ? []
+            : [[p.row.time, [p.w.lowM, p.w.highM] as const] as const],
+        ),
+      ),
+      parts: Object.fromEntries(
+        PART_ROWS.map(([key]) => [
+          key,
+          byTime(
+            rows.flatMap((row, i) => {
+              const h = partOf(waves.rows[i], key)?.heightM ?? null;
+              return h === null || !seen(row) ? [] : [[row.time, h] as const];
+            }),
+          ),
+        ]),
+      ),
+    };
+  }, [at, rows, waves, seen]);
+  const eased = useEased(easedTo);
+  const most = eased.most;
+  // The sea's bars, each its hour's whole height, the swell under the wind sea.
+  const seaHours = useMemo(
+    () => at.map((p) => ({ time: p.row.time, step: p.row.step })),
+    [at],
+  );
+  const seaTo = useMemo(
+    () =>
+      Object.fromEntries(
+        at.map((p) => [p.row.time, [p.w.heightM!, swellShare(p.w)] as const]),
+      ) as WaveBarsTo,
+    [at],
+  );
   // The scale's lines, each a height in metres: on the half metre, or on
   // whole feet in steps that leave a few lines at any height of sea.
-  const feetTop = most * FEET_PER_METRE;
+  // The lines of the scale it is going to, each where the scale moving under
+  // it puts it.
+  const goal = easedTo.most;
+  const feetTop = goal * FEET_PER_METRE;
   const feetStep =
     feetTop <= 6 ? 2 : feetTop <= 12 ? 4 : feetTop <= 24 ? 6 : 10;
   const ticks = feet
@@ -5021,8 +5546,8 @@ function WaveBands({
         (_, i) => ((i + 1) * feetStep) / FEET_PER_METRE,
       )
     : Array.from(
-        { length: Math.floor(most / (most > 3 ? 1 : 0.5)) },
-        (_, i) => (i + 1) * (most > 3 ? 1 : 0.5),
+        { length: Math.floor(goal / (goal > 3 ? 1 : 0.5)) },
+        (_, i) => (i + 1) * (goal > 3 ? 1 : 0.5),
       );
   /**
    * Runs of the hours drawn, broken at a gap or a night left out. A `held`
@@ -5055,9 +5580,11 @@ function WaveBands({
   ) =>
     runsOf(items.filter((p) => p.w.lowM !== null && p.w.highM !== null))
       .map((run) => {
-        const hi = run.map((p) => [mid(p.row), y(p.w.highM!)] as const);
+        const range = (p: (typeof run)[number]) =>
+          eased.range[p.row.time] ?? [p.w.lowM!, p.w.highM!];
+        const hi = run.map((p) => [mid(p.row), y(range(p)[1])] as const);
         const lo = run
-          .map((p) => [mid(p.row), y(p.w.lowM!)] as const)
+          .map((p) => [mid(p.row), y(range(p)[0])] as const)
           .reverse();
         return `${smoothPath(hi)}L${smoothPath(lo).slice(1)}Z`;
       })
@@ -5065,72 +5592,51 @@ function WaveBands({
   const hovered = hover === null ? null : rows[hover];
   const hoveredWave = hover === null ? null : waves.rows[hover];
   const scale = (y: number, h: number, ticks: readonly number[]) =>
-    ticks.map((m) => {
-      const yy = y + h - (m / most) * (h - 4);
-      return (
-        <g key={m}>
-          <line
-            x1={0}
-            x2={W}
-            y1={yy}
-            y2={yy}
-            className="stroke-line"
-            strokeDasharray="2 4"
-          />
-          <text
-            x={W - 6}
-            y={yy - 3}
-            textAnchor="end"
-            className={`fill-ink-muted ${caption}`}
-          >
-            {feet ? `${Math.round(m * FEET_PER_METRE)} ft` : `${m} m`}
-          </text>
-        </g>
-      );
-    });
+    ticks
+      .filter((m) => m <= most)
+      .map((m) => {
+        const yy = y + h - (m / most) * (h - 4);
+        return (
+          <g key={m}>
+            <line
+              x1={0}
+              x2={W}
+              y1={yy}
+              y2={yy}
+              className="stroke-line"
+              strokeDasharray="2 4"
+            />
+            <text
+              x={W - 6}
+              y={yy - 3}
+              textAnchor="end"
+              className={`fill-ink-muted ${caption}`}
+            >
+              {feet ? `${Math.round(m * FEET_PER_METRE)} ft` : `${m} m`}
+            </text>
+          </g>
+        );
+      });
   return (
     <>
       {bands.waves &&
         (() => {
           const [y, h] = bands.waves;
-          const HY = (m: number) =>
-            y + h - (Math.min(m, most) / most) * (h - 4);
-          const runs = runsOf(at);
-          const lines = runs.map((run) =>
-            run.map((p) => [mid(p.row), HY(p.w.heightM!)] as const),
-          );
           return (
             <g data-band="waves">
               {scale(y, h, ticks)}
-              {lines.map((pts, i) => (
-                <path
-                  key={i}
-                  d={`${smoothPath(pts)}L${pts.at(-1)![0]},${y + h}L${pts[0][0]},${y + h}Z`}
-                  className="fill-sea-1"
-                  fillOpacity={0.9}
+              {/* In the band's own place, so a row folding above moves it
+                  without drawing it again. */}
+              <g transform={`translate(0 ${y})`}>
+                <WaveBars
+                  hours={seaHours}
+                  to={seaTo}
+                  most={most}
+                  h={h}
+                  X={X}
+                  px={px}
                 />
-              ))}
-              <path
-                d={band(at, HY)}
-                className="fill-ink"
-                fillOpacity={0.14}
-                data-wave-spread
-              />
-              <path
-                d={lines.map(smoothPath).join("")}
-                className="fill-none stroke-depth"
-                strokeWidth={2}
-                data-wave-height
-              />
-              {hovered && hoveredWave?.heightM != null && seen(hovered) && (
-                <circle
-                  cx={mid(hovered)}
-                  cy={HY(hoveredWave.heightM)}
-                  r={4}
-                  className="fill-depth stroke-ground"
-                  strokeWidth={2}
-                />
-              )}
+              </g>
             </g>
           );
         })()}
@@ -5234,9 +5740,14 @@ function WaveBands({
               {scale(
                 y,
                 h,
-                ticks.filter((m) => m < most),
+                ticks.filter((m) => m < goal),
               )}
-              <path d={band(at, BY)} className="fill-ink" fillOpacity={0.06} />
+              <path
+                d={band(at, BY)}
+                className="fill-ink"
+                fillOpacity={0.06}
+                data-wave-spread
+              />
               {waves.lines.map((l) => {
                 const points = l.points.filter(seen);
                 // Through its own steps alone: a three-hourly model's line
@@ -5250,7 +5761,9 @@ function WaveBands({
                     apart(before.time, p.time)
                   )
                     lines.push([]);
-                  lines.at(-1)!.push([mid(p), BY(p.m)]);
+                  lines
+                    .at(-1)!
+                    .push([mid(p), BY(eased.lines[l.id]?.[p.time] ?? p.m)]);
                 });
                 return (
                   <path
@@ -5273,7 +5786,13 @@ function WaveBands({
                   d={runsOf(blended)
                     .map((run) =>
                       smoothPath(
-                        run.map((p) => [mid(p.row), BY(p.w.blendM!)] as const),
+                        run.map(
+                          (p) =>
+                            [
+                              mid(p.row),
+                              BY(eased.blend[p.row.time] ?? p.w.blendM!),
+                            ] as const,
+                        ),
                       ),
                     )
                     .join("")}
@@ -5326,7 +5845,13 @@ function WaveBands({
               p.part !== null && seen(p.row),
           );
         const lines = runsOf(parts).map((run) =>
-          run.map((p) => [mid(p.row), PY(p.part.heightM!)] as const),
+          run.map(
+            (p) =>
+              [
+                mid(p.row),
+                PY(eased.parts[key]?.[p.row.time] ?? p.part.heightM!),
+              ] as const,
+          ),
         );
         return (
           <g key={key} {...cut(key)}>
@@ -5387,40 +5912,6 @@ function WaveBands({
           </g>
         );
       })}
-    </>
-  );
-}
-
-/** The waves on one line: "4 ft 13 s from W". */
-function SeaLine({ at }: { at: WaveRow | null }) {
-  const heights = useHeights();
-  if (!at || at.heightM === null) return <>–</>;
-  return (
-    <>
-      {heights.text(at.heightM)}
-      {(at.periodS !== null || at.from !== null) && (
-        <span className="font-normal text-ink-2">
-          {at.periodS !== null && ` ${Math.round(at.periodS)} s`}
-          {at.from !== null && ` from ${compass(at.from)}`}
-        </span>
-      )}
-    </>
-  );
-}
-
-/** A partition on one line: "4 ft 12 s W". */
-function PartLine({ part }: { part: WavePartHour | null }) {
-  const heights = useHeights();
-  if (!part || part.heightM === null) return <>–</>;
-  return (
-    <>
-      {heights.text(part.heightM)}
-      {(part.periodS !== null || part.from !== null) && (
-        <span className="font-normal text-ink-2">
-          {part.periodS !== null && ` ${Math.round(part.periodS)} s`}
-          {part.from !== null && ` ${compass(part.from)}`}
-        </span>
-      )}
     </>
   );
 }

@@ -1584,3 +1584,43 @@ the foot of the screen with the model, the Wind rows and the Wave rows. The
 models' names leave the Wind heading, as the tabs name them. The Table view
 keeps every column whatever the switches say (they are the graphs' rows), with
 the model tabs over it, as the model moves its wind and stars.
+
+**2026-11-15 — Bars on the spot page's graphs, motion, and an hour's card
+broken down.** The fourth and last step of the redesign above. The forecast
+is hourly, so the Wind row draws an hour as a bar (a three-hour row further
+out is a bar three hours wide): the wind as the bar, in a neutral grey, the
+gust as a fainter part of the same bar above it, the whole bar in the stars'
+pink where the hour has stars, as the time slider's are. The wind's area,
+its line and the gust's dashed line are gone, and with them the band where
+the models disagree on the Wind row; the Models row keeps that band. Where
+the hour is the blend's (the rider reads Blend), a small dot in each blended
+model's own colour stands at that model's wind on the bar. The Waves row is
+a bar an hour as high as the whole sea, the swell below and the wind sea
+above in the shares of the sea's energy they carry (a height's square, as
+the heights add); where the lead model does not split the sea, the bar is
+one colour. The figures stay printed on the graph, under the bars.
+
+When the model, the rows or the hours shown change, nothing is drawn again
+from nothing: every bar, dot, line, scale and row height eases from where it
+stands to where it is going, over the half second a row takes to fold
+(`useEased`, spot/web/report/opening.ts, a cubic ease-out), from wherever it
+had got to if it was still moving; with less motion asked for, at once. The
+bars are drawn in their row's own place and moved there whole, so a row
+folding above them, or the hours scrolling, does not draw them again.
+
+The card beside the pointer (or under a finger's tap) breaks the hour down,
+every line on one line, its figures in a column and a gust or a period in a
+smaller, quieter column beside them. On the wind's rows (Stars, Wind,
+Direction, Models): the hour, the direction and the shore on its right; where
+the hour is the blend's, a line a model ("ECMWF 12 g21") with its dot, and
+the measured wind at Now; then under a rule the hour's own, the blend's or
+the model's ("Blend 14 g22 kn"), and the gust factor or the stars as before.
+On the Models row the lines are always each model's, the total the blend
+it draws. On Sky and Rain: the air, how it feels, the rain and the cloud,
+the sky in words on the right. On Tide and Current: the tide, its next turn,
+the launch's depth and the current, rising or falling on the right. On the
+waves' rows: the wave stars on the right, each swell and the wind sea with
+its direction, height and period, then under a rule the whole sea; on the
+wave Models row, each model and the blend. It is still the data alone (the
+entry of 2026-11-15 above), and replaces what the label of 2026-11-08 says
+row by row.

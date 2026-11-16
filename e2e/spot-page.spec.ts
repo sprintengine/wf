@@ -333,9 +333,9 @@ test("the graphs start where the wind does, with no empty hours before it", asyn
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
   const first = await page
-    .locator("[data-graph-svg] path[fill='url(#spot-wind)']")
+    .locator("[data-graph-svg] rect[data-wind-bar]")
     .first()
-    .evaluate((path: SVGGraphicsElement) => path.getBBox().x);
+    .evaluate((bar: SVGGraphicsElement) => bar.getBBox().x);
   expect(first).toBeLessThan(40);
 });
 
@@ -1511,6 +1511,198 @@ test("over the graphs, the model tabs and the rows' switches; a row folds away a
       .getByRole("button", { name: "ECMWF" }),
   ).toHaveAttribute("aria-pressed", "true");
   expect(errors).toEqual([]);
+});
+
+/**
+ * Every Wind bar's height, frame by frame for `ms`, each by its place along
+ * the hours, from the frame after it is asked: the bars as they move.
+ */
+const barsOver = (page: Page, ms: number) =>
+  page.evaluate(
+    (ms) =>
+      new Promise<Record<string, number>[]>((done) => {
+        const seen: Record<string, number>[] = [];
+        const start = performance.now();
+        const frame = () => {
+          seen.push(
+            Object.fromEntries(
+              [...document.querySelectorAll("[data-wind-bar]")].map((bar) => [
+                bar.getAttribute("x"),
+                Number(bar.getAttribute("height")),
+              ]),
+            ),
+          );
+          if (performance.now() - start < ms) requestAnimationFrame(frame);
+          else done(seen);
+        };
+        requestAnimationFrame(frame);
+      }),
+    ms,
+  );
+
+/** How many frames found a bar on its way: neither where it was nor where it went. */
+const between = (frames: Record<string, number>[]) => {
+  const [first, last] = [frames[0], frames.at(-1)!];
+  const moved = Object.keys(last).filter(
+    (x) => first[x] !== undefined && Math.abs(first[x] - last[x]) > 2,
+  );
+  return {
+    moved: moved.length,
+    between: frames.filter((f) =>
+      moved.some(
+        (x) =>
+          f[x] !== undefined &&
+          Math.abs(f[x] - first[x]) > 0.5 &&
+          Math.abs(f[x] - last[x]) > 0.5,
+      ),
+    ).length,
+  };
+};
+
+test("the wind is a bar an hour, pink where it has stars; on the blend each model's dot, and a new model eases in", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await withWaves(page);
+  await page.goto("/spot/brandon");
+  await expect(heading(page)).toBeVisible({ timeout: 30000 });
+  const svg = page.locator("[data-graph-svg]");
+  const bars = svg.locator("[data-wind-bars] rect[data-wind-bar]");
+  await expect.poll(() => bars.count()).toBeGreaterThan(50);
+  // The bars stand for the wind: no area, no line, no gust's dashes.
+  await expect(svg.locator("linearGradient")).toHaveCount(0);
+  await expect(svg.locator('path[stroke-dasharray="4 3"]')).toHaveCount(0);
+  // An hour with stars is a pink bar: as many as the Stars row has pips.
+  const pink = await svg.locator("rect[data-bar-stars]").count();
+  expect(pink).toBeGreaterThan(5);
+  expect(pink).toBe(
+    await svg.locator('[data-band="stars"] [data-stars]').count(),
+  );
+  // The gust a fainter bar over the wind's, reaching higher.
+  const tops = await svg.locator("[data-wind-bars] > g").evaluateAll((hours) =>
+    hours.flatMap((g) => {
+      const wind = g.querySelector("[data-wind-bar]");
+      const gust = g.querySelector("[data-gust-bar]");
+      return wind && gust
+        ? [[Number(gust.getAttribute("y")), Number(wind.getAttribute("y"))]]
+        : [];
+    }),
+  );
+  expect(tops.length).toBeGreaterThan(20);
+  for (const [gust, wind] of tops) expect(gust).toBeLessThan(wind);
+  // HARMONIE's own wind: no models' dots.
+  await expect(svg.locator("[data-model-dot]")).toHaveCount(0);
+
+  // The blend: each model's own wind a dot on the bar, and every bar eases
+  // from where it stood to the blend's, not drawn again from nothing.
+  await page.locator('[data-week-section="wind"]').scrollIntoViewIfNeeded();
+  const models = page
+    .locator('[data-graph-tabs="wind"]')
+    .getByRole("group", { name: "Model" });
+  const moving = barsOver(page, 1500);
+  await models.getByRole("button", { name: "Blend" }).click();
+  const blend = between(await moving);
+  expect(blend.moved).toBeGreaterThan(5);
+  expect(blend.between).toBeGreaterThan(3);
+  await expect
+    .poll(() => svg.locator("[data-model-dot]").count())
+    .toBeGreaterThan(50);
+  for (const id of ["harmonie", "ecmwf"])
+    await expect(
+      svg.locator(`[data-model-dots="${id}"] circle`).first(),
+    ).toBeAttached();
+
+  // With less motion asked for, a model chosen moves the bars at once.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const still = barsOver(page, 1500);
+  await models.getByRole("button", { name: "ECMWF" }).click();
+  const ecmwf = between(await still);
+  expect(ecmwf.moved).toBeGreaterThan(5);
+  expect(ecmwf.between).toBe(0);
+  await expect(svg.locator("[data-model-dot]")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("the hour's card breaks the hour down: model by model, the sky, the tide", async ({
+  page,
+}) => {
+  await allSpotRows(page);
+  await withTides(page);
+  await page.goto("/spot/brandon");
+  await expect(heading(page)).toBeVisible({ timeout: 30000 });
+  await page
+    .locator('[data-graph-tabs="wind"]')
+    .getByRole("group", { name: "Model" })
+    .getByRole("button", { name: "Blend" })
+    .click();
+  const graph = page.locator("[data-spot-graph]");
+  await graph.scrollIntoViewIfNeeded();
+  const box = (await graph.boundingBox())!;
+  const x = box.x + box.width * 0.4;
+  const band = async (name: string) => {
+    const strip = page
+      .locator('[data-week-section="wind"] [data-band-name]')
+      .filter({ hasText: new RegExp(`^${name}$`) });
+    return (await strip.boundingBox())!.y + 6;
+  };
+  const card = page.locator('[data-card="wind"]');
+
+  // On the wind: a line a model, its gust in a column of its own, then
+  // under a rule the blend's own; every line on one line.
+  await page.mouse.move(x, await band("Wind"));
+  await expect(card).toHaveAttribute("data-card-band", "wind");
+  const lines = card.locator("[data-card-model]");
+  await expect.poll(() => lines.count()).toBeGreaterThanOrEqual(2);
+  await expect(lines.first()).toHaveText(/^[A-Z][\w -]+\d+(g\d+)?$/);
+  await expect(card.locator("[data-card-total]")).toHaveText(
+    /^Blend\d+(g\d+ )?kn$/,
+  );
+  const heights = await card
+    .locator("[data-card-model], [data-card-total]")
+    .evaluateAll((rows) =>
+      rows.map((row) => row.getBoundingClientRect().height),
+    );
+  for (const h of heights) expect(h).toBeLessThan(22);
+  // The figures in one column down the card, the gusts in another.
+  const columns = await card
+    .locator("[data-card-model], [data-card-total]")
+    .evaluateAll((rows) =>
+      rows.map((row) => row.querySelector("b")!.getBoundingClientRect().right),
+    );
+  for (const right of columns) expect(right).toBeCloseTo(columns[0], 0);
+
+  // A long card, every model then the stars, stays inside the graph rather
+  // than over the tabs above it.
+  await page.mouse.move(x, await band("Stars"));
+  await expect(card).toHaveAttribute("data-card-band", "stars");
+  const frame = (await graph.locator("..").boundingBox())!;
+  const long = (await card.boundingBox())!;
+  expect(long.y).toBeGreaterThanOrEqual(frame.y);
+  expect(long.y + long.height).toBeLessThanOrEqual(frame.y + frame.height);
+
+  // On the sky: the air, how it feels, the rain and the cloud.
+  await page.mouse.move(x, await band("Sky"));
+  await expect(card).toHaveAttribute("data-card-band", "sky");
+  await expect(card.locator('[data-card-row="air"]')).toHaveText(/^Air-?\d+°$/);
+  await expect(card.locator('[data-card-row="cloud"]')).toHaveText(
+    /^Cloud\d+%$/,
+  );
+  await expect(card.locator('[data-card-row="rain"]')).toBeAttached();
+  await expect(card.locator("[data-card-model]")).toHaveCount(0);
+
+  // On the tide: the tide, its next turn and the current.
+  await page.mouse.move(x, await band("Tide"));
+  await expect(card).toHaveAttribute("data-card-band", "tide");
+  await expect(card.locator('[data-card-row="tide"]')).toHaveText(
+    /^Tide\d\.\d m$/,
+  );
+  await expect(card.locator('[data-card-row="turn"]')).toHaveText(
+    /^Next (high|low)\d{2}:\d{2}$/,
+  );
+  await expect(card.locator('[data-card-row="current"]')).toContainText(
+    /^Current/,
+  );
 });
 
 test("the table keeps every column, with the model tabs over it", async ({

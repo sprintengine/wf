@@ -419,3 +419,37 @@ export async function chooseModel(page: Page, id: string) {
   await modelChoice(page, id).click();
   await saveSettings(page);
 }
+
+/**
+ * Every row of the spot page's graphs switched on before the page loads, the
+ * models, the current and the swells among them (they start off,
+ * force5/src/prefs.ts `DEFAULT_SPOT_ROWS`), merged into whatever else is
+ * stored: for a spec about what those rows draw.
+ */
+export async function allSpotRows(page: Page) {
+  await page.addInitScript(() => {
+    const key = "force5.prefs.v1";
+    let stored: Record<string, unknown> = {};
+    try {
+      stored = JSON.parse(localStorage.getItem(key) ?? "{}") ?? {};
+    } catch {
+      stored = {};
+    }
+    const on = Object.fromEntries(
+      [
+        "stars",
+        "dir",
+        "models",
+        "sky",
+        "rain",
+        "tide",
+        "current",
+        "wstars",
+        "wdir",
+        "wmodels",
+        "swells",
+      ].map((k) => [k, true]),
+    );
+    localStorage.setItem(key, JSON.stringify({ ...stored, spotRows: on }));
+  });
+}

@@ -1560,3 +1560,27 @@ wind and the shore, and the High tide | Low tide switch is small, over the
 picture's corner. This replaces the cards of 2026-11-08 and 2026-11-09, and
 their rule that the cards always say now. Without a picture the cards run
 four across a wide page; a point on the open water has no bar and no stars.
+
+**2026-11-15 — Tabs over the spot page's graphs.** The third step of the
+redesign above. Directly over the Wind graph, on a desktop: the model tabs
+(Blend, then each model), which are the rider's one model choice, the one the
+map draws and the stars rate (the ruling of 23 October 2026), not a setting of
+the page's own; a thin rule; then a switch for each of the graph's rows that
+can go: Stars, Direction (its figures and the gusts' marks with it), Models,
+Sky, Rain, Tide and Current. Over the Waves graph: Wave stars, Direction (the
+period with it), Models and Swells (every swell train and the wind sea
+together). The Wind and Waves rows themselves always stay. Models, Current,
+the wave Models and Swells start off, the rest on, and the rider's switches
+are kept on the device for their next visit (force5.prefs.v1 `spotRows`). A
+row switched off folds away and one switched on opens: its height eases from
+where it is to where it is going, the rows under it and the graph's foot
+moving with it, the row itself cut to its open share and fading as it goes
+(at once where the rider asks for less motion). The key under the graphs
+names only what is drawn. A switch is offered only where its row has
+something to draw: no stars at a point on the open water, no Swells where no
+model splits the sea. On a phone there are no tab rows: one "Model & rows"
+button in the Wind heading, beside the Graph | Table switch, opens a sheet from
+the foot of the screen with the model, the Wind rows and the Wave rows. The
+models' names leave the Wind heading, as the tabs name them. The Table view
+keeps every column whatever the switches say (they are the graphs' rows), with
+the model tabs over it, as the model moves its wind and stars.

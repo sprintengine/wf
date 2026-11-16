@@ -9,6 +9,7 @@ import {
   savePrefs,
   setRow,
   saveRider,
+  saveSpotRows,
   withCustomStars,
   withRiderModel,
   type Prefs,
@@ -391,6 +392,51 @@ describe("display preferences", () => {
       upwind: 15,
       custom: own,
     });
+  });
+});
+
+describe("the spot page's graph rows", () => {
+  it("start with the models, the current and the swells off, the rest on", () => {
+    expect(defaultPrefs().spotRows).toEqual({
+      stars: true,
+      dir: true,
+      models: false,
+      sky: true,
+      rain: true,
+      tide: true,
+      current: false,
+      wstars: true,
+      wdir: true,
+      wmodels: false,
+      swells: false,
+    });
+  });
+
+  it("keep the rider's switches for the next visit, and nothing else changes", () => {
+    const storage = fakeStorage();
+    saveRider({ ...DEFAULT_RIDER, weightKg: 70 }, storage);
+    const saved = saveSpotRows(
+      { ...defaultPrefs().spotRows, models: true, tide: false },
+      storage,
+    );
+    expect(saved.rider.weightKg).toBe(70);
+    const back = loadPrefs(storage);
+    expect(back.spotRows.models).toBe(true);
+    expect(back.spotRows.tide).toBe(false);
+    expect(back.spotRows.stars).toBe(true);
+    expect(back.rider.weightKg).toBe(70);
+  });
+
+  it("read only real rows and real switches, the defaults for the rest", () => {
+    const storage = fakeStorage({
+      [PREFS_KEY]: JSON.stringify({
+        spotRows: { models: true, tide: "no", bogus: true },
+      }),
+    });
+    const rows = loadPrefs(storage).spotRows;
+    expect(rows.models).toBe(true);
+    expect(rows.tide).toBe(true);
+    expect("bogus" in rows).toBe(false);
   });
 });
 

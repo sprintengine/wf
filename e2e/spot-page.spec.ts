@@ -224,6 +224,114 @@ test("a click holds the hour until it is let go, and the strip follows the hour"
   expect(lefts.some((left) => Math.abs(left - frame!.x) < 1)).toBe(true);
 });
 
+test("the days and the time slider stay pinned under the site's bar as the page scrolls", async ({
+  page,
+}) => {
+  await withTides(page);
+  await page.goto("/spot/brandon");
+  await expect(heading(page)).toBeVisible({ timeout: 30000 });
+  await expect(page.locator("[data-graph-svg]")).toBeVisible();
+  const bar = page.locator("[data-when-bar]");
+  const top = page.locator("[data-top-bar]");
+  await expect(bar.locator("[data-day-card]").first()).toBeVisible();
+  await expect(bar.locator("[data-time-slider]")).toBeVisible();
+  // Down to the Waves: the site's bar at the top, the days and the hour under it.
+  await page.locator('[data-week-section="waves"]').evaluate((el) =>
+    // Just under the days and the slider pinned at the top.
+    scrollTo(
+      0,
+      scrollY +
+        el.getBoundingClientRect().top -
+        parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
+    ),
+  );
+  const head = (await top.boundingBox())!;
+  const pinned = (await bar.boundingBox())!;
+  expect(head.y).toBe(0);
+  expect(Math.abs(pinned.y - (head.y + head.height))).toBeLessThan(1);
+  // The Waves graph's day names hold under the pinned bar, not behind it.
+  const names = (await page.locator('[data-day-heads="waves"]').boundingBox())!;
+  expect(names.y).toBeGreaterThanOrEqual(pinned.y + pinned.height - 1);
+  // The next stars, from the table: the Wind graph comes up just under the bar.
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.getByRole("button", { name: "Table", exact: true }).click();
+  await page.locator("button[data-next-stars]").click();
+  const wind = page.locator('[data-week-section="wind"]');
+  await expect
+    .poll(async () => Math.round((await wind.boundingBox())!.y))
+    .toBe(Math.round(pinned.y + pinned.height));
+});
+
+test("the time slider moves the page's hour, and an hour chosen anywhere else moves it", async ({
+  page,
+}) => {
+  await withPictures(page);
+  await withTides(page);
+  await page.goto("/spot/brandon");
+  await expect(heading(page)).toBeVisible({ timeout: 30000 });
+  await expect(page.locator("[data-graph-svg]")).toBeVisible();
+  const slider = page.getByRole("slider", { name: /^Hour/ });
+  const sliderTag = page.locator("[data-slider-tag]");
+  const cursor = page.locator('[data-cursor-tag="wind"] [data-cursor-hour]');
+  const foot = page.locator("[data-loupe-foot]");
+  await expect(sliderTag).toHaveText("Now");
+  // The hours are a tick each, pink where they have stars, the nights shaded.
+  await expect(
+    page.locator("[data-slider-hour][data-stars]").first(),
+  ).toBeAttached();
+  await expect(
+    page.locator("[data-slider-hour][data-night]").first(),
+  ).toBeAttached();
+  // The keys step the hour: the graph, the picture and the days follow.
+  await slider.focus();
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(sliderTag).toHaveText(/^Mon \d{2}:00$/);
+  const monday = await sliderTag.textContent();
+  await expect(cursor).toHaveText(monday!);
+  await expect(foot).toContainText(monday!);
+  await expect(page.locator('[data-day-card="2026-09-14"]')).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.keyboard.press("ArrowRight");
+  await expect(sliderTag).not.toHaveText(monday!);
+  await expect(cursor).toHaveText((await sliderTag.textContent())!);
+  // Home goes back to now.
+  await page.keyboard.press("Home");
+  await expect(sliderTag).toHaveText("Now");
+  // A wheel over it moves the hour on, and the graph keeps it in view.
+  const box = (await slider.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let i = 0; i < 8; i++) await page.mouse.wheel(0, 100);
+  await expect(sliderTag).not.toHaveText("Now");
+  await expect
+    .poll(async () => (await cursor.textContent()) ?? "")
+    .toBe((await sliderTag.textContent()) ?? "");
+  const graph = (await page.locator("[data-spot-graph]").boundingBox())!;
+  const tag = (await page.locator('[data-cursor-tag="wind"]').boundingBox())!;
+  expect(tag.x).toBeGreaterThan(graph.x);
+  expect(tag.x + tag.width).toBeLessThan(graph.x + graph.width);
+  // A mouse drags it: further on, the hour further on.
+  const before = await sliderTag.textContent();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 150, box.y + box.height / 2, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  await expect(sliderTag).not.toHaveText(before!);
+  // A day card chosen: the slider goes to its midday.
+  await page.locator('[data-day-card="2026-09-15"]').click();
+  await expect(sliderTag).toHaveText(/^Tue \d{2}:00$/);
+  await expect(cursor).toHaveText((await sliderTag.textContent())!);
+  // The pointer over the graph: the slider says the hour under it.
+  await page.locator("[data-spot-graph]").scrollIntoViewIfNeeded();
+  const over = (await page.locator("[data-spot-graph]").boundingBox())!;
+  await page.mouse.move(over.x + over.width * 0.7, over.y + over.height * 0.6);
+  await expect(cursor).toHaveText(/\d{2}:\d{2}/);
+  await expect(sliderTag).toHaveText((await cursor.textContent())!);
+});
+
 test("the graphs start where the wind does, with no empty hours before it", async ({
   page,
 }) => {
@@ -1225,9 +1333,17 @@ test.describe("on a phone, the week graph", () => {
     await expect(page.locator("[data-graph-svg]")).toBeVisible();
     // Everything above the graph in, so nothing moves the page but a finger.
     await page.waitForLoadState("networkidle");
-    await page
-      .locator('[data-week-section="wind"]')
-      .evaluate((el) => scrollTo(0, scrollY + el.getBoundingClientRect().top));
+    await page.locator('[data-week-section="wind"]').evaluate((el) =>
+      // Just under the days and the slider pinned at the top.
+      scrollTo(
+        0,
+        scrollY +
+          el.getBoundingClientRect().top -
+          parseFloat(
+            getComputedStyle(document.documentElement).scrollPaddingTop,
+          ),
+      ),
+    );
     const box = (await graph.boundingBox())!;
     // Across the graph, from its wind row to its current: the hours move
     // under the playhead and its tag follows, and the page stays put.
@@ -1294,9 +1410,17 @@ test.describe("on a phone, the week graph", () => {
       expect(box.right).toBeLessThanOrEqual(right.x + right.width);
     }
     await page.waitForLoadState("networkidle");
-    await page
-      .locator('[data-week-section="wind"]')
-      .evaluate((el) => scrollTo(0, scrollY + el.getBoundingClientRect().top));
+    await page.locator('[data-week-section="wind"]').evaluate((el) =>
+      // Just under the days and the slider pinned at the top.
+      scrollTo(
+        0,
+        scrollY +
+          el.getBoundingClientRect().top -
+          parseFloat(
+            getComputedStyle(document.documentElement).scrollPaddingTop,
+          ),
+      ),
+    );
     const box = (await graph.boundingBox())!;
     const y = box.y + 80;
     // On: they fold away, in both sections, and the hours have the width.
@@ -1313,6 +1437,36 @@ test.describe("on a phone, the week graph", () => {
     await expect
       .poll(async () => (await column.boundingBox())!.x)
       .toBe(right.x);
+  });
+
+  test("a finger swipes the time slider, and the playhead goes with it", async ({
+    page,
+  }) => {
+    await withTides(page);
+    await page.goto("/spot/brandon");
+    await expect(heading(page)).toBeVisible({ timeout: 30000 });
+    await expect(page.locator("[data-graph-svg]")).toBeVisible();
+    const sliderTag = page.locator("[data-slider-tag]");
+    const playhead = page.locator(
+      '[data-cursor-tag="wind"] [data-cursor-hour]',
+    );
+    await expect(sliderTag).toHaveText("Now");
+    await expect(playhead).toHaveText("Now");
+    const box = (await page.locator("[data-slider-track]").boundingBox())!;
+    const y = box.y + box.height / 2;
+    await swipe(page, { x: box.x + 300, y }, { x: box.x + 60, y });
+    await expect(sliderTag).toHaveText(/^\w{3} \d{2}:00$/);
+    // Once it comes to rest, the graph's playhead is on the same hour.
+    const same = async () =>
+      (await sliderTag.textContent()) === (await playhead.textContent());
+    await expect.poll(same).toBe(true);
+    const swiped = await sliderTag.textContent();
+    // The graph moved along: the slider follows it.
+    await page
+      .locator("[data-spot-graph]")
+      .evaluate((el) => (el.scrollLeft += 300));
+    await expect(sliderTag).not.toHaveText(swiped!);
+    await expect.poll(same).toBe(true);
   });
 
   test("a finger reads the hour at the playhead, and a tap asks a row for its label", async ({

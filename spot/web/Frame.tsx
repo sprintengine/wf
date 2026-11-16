@@ -18,23 +18,32 @@ const styles = tv({
     root: "flex min-h-dvh flex-col bg-ground font-body text-prose text-ink antialiased",
     // The same edge as the bar's, so the wordmark and the page line up.
     page: "flex w-full flex-1 flex-col px-safe-4 wide:px-safe-6",
+    // On a spot's report the bar stays at the top of the screen, and the
+    // report's day cards and time slider pin under it.
+    pinned: "sticky top-0",
   },
 });
 
 export function SpotFrame({
   back,
+  pinned = false,
   children,
 }: {
   /** Where the bar's Chart button goes: the full chart, on this spot. */
   back: string;
+  /** Whether the bar stays at the top of the screen: a spot's report. */
+  pinned?: boolean;
   children: ReactNode;
 }) {
   const s = styles();
   return (
     <div className={s.root()}>
       <TopBar
+        className={pinned ? s.pinned() : undefined}
         search={
-          <SpotSearch onPick={(spot) => window.location.assign(spotHref(spot.id))} />
+          <SpotSearch
+            onPick={(spot) => window.location.assign(spotHref(spot.id))}
+          />
         }
         view={{ to: "chart", href: back }}
         menu={

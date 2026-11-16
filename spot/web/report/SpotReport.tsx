@@ -5214,7 +5214,10 @@ function LowerBands({
         (() => {
           const [y, h] = lower.blend;
           const { lo, hi } = eased;
-          const MY = (k: number) => y + h - ((k - lo) / (hi - lo)) * h;
+          // Clamped: a model reaching an hour mid-ease lands on its final value
+          // while the scale is still on its way, and must not leave the row.
+          const MY = (k: number) =>
+            y + h - Math.min(1, Math.max(0, (k - lo) / (hi - lo))) * h;
           // The blend's at an hour, eased: its wind, its low and its high.
           const at = (t: number) => {
             const b = blend.get(t)!;

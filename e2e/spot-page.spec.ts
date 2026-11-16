@@ -1676,16 +1676,28 @@ test("the wind is a bar an hour, pink where it has stars; on the blend each mode
   expect(back.moved).toBeGreaterThan(40);
   expect(back.step).toBeLessThan(back.moved / 2);
 
-  // With less motion asked for, a model chosen moves the bars at once, and
-  // still not across the screen.
+  // With less motion asked for, a model chosen moves the bars at once: the
+  // blend's hours, put on the graph's start, keep those on screen in place,
+  // and back to HARMONIE from the first hours they jump, with no glide.
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.waitForTimeout(600);
   const still = barsOver(page, 1500);
-  await models.getByRole("button", { name: "ECMWF" }).click();
-  const ecmwf = eased(await still, inView);
-  expect(ecmwf.grew).toBeGreaterThan(5);
-  expect(ecmwf.between).toBe(0);
-  expect(ecmwf.moved).toBeLessThanOrEqual(1);
+  await models.getByRole("button", { name: "Blend" }).click();
+  const atOnce = eased(await still, inView);
+  expect(atOnce.widths[1]).toBeGreaterThan(atOnce.widths[0]);
+  expect(atOnce.grew).toBeGreaterThan(5);
+  expect(atOnce.between).toBe(0);
+  expect(atOnce.moved).toBeLessThanOrEqual(1);
+  await graph.evaluate((el) => {
+    el.scrollLeft = 0;
+  });
+  await page.waitForTimeout(300);
+  const jumping = barsOver(page, 1000);
+  await models.getByRole("button", { name: "HARMONIE" }).click();
+  const jumped = eased(await jumping, inView);
+  expect(jumped.moved).toBeGreaterThan(40);
+  expect(jumped.step).toBeGreaterThanOrEqual(jumped.moved - 1);
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
   await expect(svg.locator("[data-model-dot]")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -1823,6 +1835,59 @@ test.describe("on a phone, the model and the rows", () => {
     await sheet.getByRole("button", { name: "Close" }).click();
     await expect(sheet).toBeHidden();
     await expect(wind.locator("[data-band-name]").last()).toHaveText("Current");
+  });
+
+  test("a model chosen in the sheet keeps the playhead on its hour, the hours gliding under it", async ({
+    page,
+  }) => {
+    await withTides(page);
+    await withLaterRuns(page);
+    await page.goto("/spot/brandon");
+    await expect(heading(page)).toBeVisible({ timeout: 30000 });
+    const graph = page.locator("[data-spot-graph]");
+    await graph.scrollIntoViewIfNeeded();
+    const playhead = page.locator(
+      '[data-cursor-tag="wind"] [data-cursor-hour]',
+    );
+    await expect(playhead).toHaveText("Now");
+    const width = Number(
+      await page.locator("[data-graph-svg]").getAttribute("width"),
+    );
+    await page.locator("[data-rows-button]").click();
+    const sheet = page.getByRole("dialog", { name: "Model & rows" });
+    // The playhead's line on screen, frame by frame, as the blend comes in.
+    const lines = page.evaluate(
+      () =>
+        new Promise<number[]>((done) => {
+          const seen: number[] = [];
+          const start = performance.now();
+          const frame = () => {
+            const line = document.querySelector("[data-playhead-line]");
+            if (line) seen.push(line.getBoundingClientRect().left);
+            if (performance.now() - start < 2500) requestAnimationFrame(frame);
+            else done(seen);
+          };
+          requestAnimationFrame(frame);
+        }),
+    );
+    await sheet
+      .getByRole("group", { name: "Model" })
+      .getByRole("button", { name: "Blend" })
+      .click();
+    await sheet.getByRole("button", { name: "Close" }).click();
+    const at = await lines;
+    // The blend's hours start earlier: the graph is wider, the playhead on
+    // the same hour, and the hours under it came to their place smoothly.
+    await expect
+      .poll(async () =>
+        Number(await page.locator("[data-graph-svg]").getAttribute("width")),
+      )
+      .toBeGreaterThan(width);
+    await expect(playhead).toHaveText("Now");
+    const moved = Math.abs(at.at(-1)! - at[0]);
+    const step = Math.max(...at.slice(1).map((x, i) => Math.abs(x - at[i])));
+    expect(moved).toBeGreaterThan(20);
+    expect(step).toBeLessThan(moved / 2);
   });
 });
 

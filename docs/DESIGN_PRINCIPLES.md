@@ -1648,8 +1648,8 @@ at different hours, so the hours the graph spans start earlier or later with
 the model (the hours start where the wind does); before, every bar, figure
 and day name moved along by the hours put on or taken off at once, and the
 graph seemed to jump to another screen. Now the hours on screen stay where
-they are while their bars ease to the new model's, the hours put on grow
-from the foot and those taken off go down to it. Where the hours that were
+they are while their bars ease to the new model's, and an hour one model
+has and the other has not grows from the foot or goes down to it. Where the hours that were
 on screen are gone, or on a phone, where the playhead stays on its hour,
 what is on screen glides to its new place over the same half second. A
 day's width with the night hidden is a whole day's lit hours, so it no

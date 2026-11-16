@@ -2455,8 +2455,12 @@ function Graph({
     const left = scrolled;
     const first = line.spans[0]?.from ?? start;
     // The hour at the screen's left edge, or the graph's new first hour if
-    // that one has gone; on a phone, the hour under the playhead.
-    const held = phone ? shownRow : null;
+    // that one has gone; on a phone, the hour that was under the playhead
+    // (by its time: the rows may have moved under the index).
+    const held =
+      phone && lastShown.current !== null
+        ? rowAt(rows, lastShown.current)
+        : null;
     const anchor = held
       ? held.time
       : Math.max(first, was.line.time((left / was.px) * HOUR));
@@ -2479,14 +2483,34 @@ function Graph({
     lastLeft.current = next;
     for (const other of scrollers()) other.scrollLeft = next;
     setScrolled(next);
-    if (Math.abs(shift) < 1 || stillWanted()) return;
-    for (const other of scrollers())
-      other.firstElementChild?.animate(
-        [{ transform: `translateX(${shift}px)` }, { transform: "none" }],
+    paintDayWindow(next);
+    // A glide still under way goes on from where it has got to.
+    const contents = scrollers().flatMap((other) =>
+      other.firstElementChild instanceof HTMLElement
+        ? [other.firstElementChild]
+        : [],
+    );
+    const glideAt = contents[0]
+      ? getComputedStyle(contents[0]).transform
+      : "none";
+    const going = glideAt === "none" ? 0 : new DOMMatrixReadOnly(glideAt).m41;
+    for (const content of contents)
+      for (const glide of content.getAnimations()) glide.cancel();
+    const from = shift + (Number.isFinite(going) ? going : 0);
+    if (Math.abs(from) < 1 || stillWanted()) return;
+    for (const content of contents)
+      content.animate(
+        [{ transform: `translateX(${from}px)` }, { transform: "none" }],
         { duration: OPEN_MS, easing: EASE_OUT_CSS },
       );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [X]);
+  // The hour under a phone's playhead as last drawn, which the hours'
+  // moving above keeps there.
+  const lastShown = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    lastShown.current = shownRow?.time ?? null;
+  });
   // With a mouse the hour read out is the one under the pointer, and stays
   // so as a wheel or a trackpad scrolls the hours along under it. Over a
   // section, a card beside the pointer lists that section's models.

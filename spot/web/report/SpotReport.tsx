@@ -2427,10 +2427,21 @@ function Graph({
     section: Section;
     band: string;
     left: number;
+    /** Level with the band's middle, where the card's middle stands. */
     top: number;
+    /** The graph's height, inside which the whole card is kept. */
+    limit: number;
     /** Laid to the left of the hour, out of the way of the graph's edge. */
     flip: boolean;
   } | null>(null);
+  // The card's own height as drawn, which a long card (every model, then the
+  // stars) needs to stay inside the graph rather than over the tabs above.
+  const cardEl = useRef<HTMLDivElement>(null);
+  const [cardHeight, setCardHeight] = useState(0);
+  useLayoutEffect(() => {
+    const h = cardEl.current?.offsetHeight ?? 0;
+    if (h !== cardHeight) setCardHeight(h);
+  });
   /** A section's bands, top to bottom, each with its place. */
   const bandsOf = (at: Section) => {
     const stacked: Partial<Record<string, readonly [number, number]>> =
@@ -2469,7 +2480,8 @@ function Graph({
       section: at,
       band,
       left: flip ? v.left + X(r.time) - b.left - LABEL_GAP : right + LABEL_GAP,
-      top: Math.max(4, Math.min(middle, b.height - 20)),
+      top: middle,
+      limit: b.height,
       flip,
     };
   };
@@ -3498,9 +3510,15 @@ function Graph({
         className={s.hourLabel({
           className: where.flip ? "-translate-x-full" : undefined,
         })}
+        ref={cardEl}
         style={{
           left: where.left,
-          top: where.top,
+          // Its middle level with the band, but the whole card inside the
+          // graph: below its top, above its foot where it is short enough.
+          top: Math.max(
+            4 + cardHeight / 2,
+            Math.min(where.top, where.limit - 4 - cardHeight / 2),
+          ),
           gridTemplateColumns: CARD_COLUMNS,
         }}
         data-card={at}
@@ -5252,26 +5270,29 @@ function LowerBands({
               {Array.from(
                 { length: (modelsTo.hi - modelsTo.lo) / 10 + 1 },
                 (_, i) => modelsTo.lo + i * 10,
-              ).map((k) => (
-                <g key={k}>
-                  <line
-                    x1={0}
-                    x2={W}
-                    y1={MY(k)}
-                    y2={MY(k)}
-                    className="stroke-line"
-                    strokeDasharray="2 4"
-                  />
-                  <text
-                    x={W - 6}
-                    y={MY(k) - 3}
-                    textAnchor="end"
-                    className={`fill-ink-muted ${caption}`}
-                  >
-                    {speed.say(k)}
-                  </text>
-                </g>
-              ))}
+              )
+                // Only those inside the band as the scale moves under them.
+                .filter((k) => k >= lo - 0.01 && k <= hi + 0.01)
+                .map((k) => (
+                  <g key={k}>
+                    <line
+                      x1={0}
+                      x2={W}
+                      y1={MY(k)}
+                      y2={MY(k)}
+                      className="stroke-line"
+                      strokeDasharray="2 4"
+                    />
+                    <text
+                      x={W - 6}
+                      y={MY(k) - 3}
+                      textAnchor="end"
+                      className={`fill-ink-muted ${caption}`}
+                    >
+                      {speed.say(k)}
+                    </text>
+                  </g>
+                ))}
               {spread && (
                 <path d={spread} className="fill-ink" fillOpacity={0.06} />
               )}

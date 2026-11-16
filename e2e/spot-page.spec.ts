@@ -1672,6 +1672,15 @@ test("the hour's card breaks the hour down: model by model, the sky, the tide", 
     );
   for (const right of columns) expect(right).toBeCloseTo(columns[0], 0);
 
+  // A long card, every model then the stars, stays inside the graph rather
+  // than over the tabs above it.
+  await page.mouse.move(x, await band("Stars"));
+  await expect(card).toHaveAttribute("data-card-band", "stars");
+  const frame = (await graph.locator("..").boundingBox())!;
+  const long = (await card.boundingBox())!;
+  expect(long.y).toBeGreaterThanOrEqual(frame.y);
+  expect(long.y + long.height).toBeLessThanOrEqual(frame.y + frame.height);
+
   // On the sky: the air, how it feels, the rain and the cloud.
   await page.mouse.move(x, await band("Sky"));
   await expect(card).toHaveAttribute("data-card-band", "sky");

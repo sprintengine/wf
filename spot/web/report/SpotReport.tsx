@@ -855,6 +855,11 @@ export function SpotReport({
   };
   const wide = useWide();
   const [sheet, setSheet] = useState(false);
+  // Grown past a phone's width, the sheet is gone: it does not come back
+  // unasked when the window narrows again.
+  useEffect(() => {
+    if (wide) setSheet(false);
+  }, [wide]);
   // The switches name only rows the place has: no stars at a point on the
   // open water, no Models row without models, no Swells without a split.
   const hasSwells = !!seaShown?.rows.some((r) =>
@@ -1182,6 +1187,9 @@ export function SpotReport({
                 open={sheet}
                 title="Model & rows"
                 onClose={() => setSheet(false)}
+                // A sheet from the foot of the screen up to the page's own
+                // phone width, not the kit's narrower one.
+                className="max-wide:mb-0 max-wide:w-full max-wide:max-w-none max-wide:rounded-b-none"
               >
                 <div className={s.sheetPart()} data-rows-sheet>
                   {modelTabs && (
@@ -4139,18 +4147,25 @@ function Graph({
               <KeyItem mark="over">Past too much: no stars</KeyItem>
             </KeyGroup>
           )}
-          <KeyGroup name="Sky and water" wide>
-            {!dark && <KeyItem mark="dark">Dark</KeyItem>}
-            {ROW.rain && <KeyItem mark="rain">Rain, mm/h</KeyItem>}
-            {ROW.current && (
-              <KeyItem mark="current">
-                Current: where it runs, in {unitLabel(currentUnits(units))}
-              </KeyItem>
-            )}
-            {ROW.tide && deepAt !== null && (
-              <KeyItem mark="depth">1 m of water or more at the launch</KeyItem>
-            )}
-          </KeyGroup>
+          {(!dark ||
+            ROW.rain ||
+            ROW.current ||
+            (ROW.tide && deepAt !== null)) && (
+            <KeyGroup name="Sky and water" wide>
+              {!dark && <KeyItem mark="dark">Dark</KeyItem>}
+              {ROW.rain && <KeyItem mark="rain">Rain, mm/h</KeyItem>}
+              {ROW.current && (
+                <KeyItem mark="current">
+                  Current: where it runs, in {unitLabel(currentUnits(units))}
+                </KeyItem>
+              )}
+              {ROW.tide && deepAt !== null && (
+                <KeyItem mark="depth">
+                  1 m of water or more at the launch
+                </KeyItem>
+              )}
+            </KeyGroup>
+          )}
         </div>
         {waves && waveStack && (
           <div className={s.legend()} data-wave-legend>
@@ -4283,7 +4298,7 @@ function BandNames({
         {bands.map(([name, middle, [y, h], unit, open = 1]) => (
           // Cut to the band's open share as it opens or folds, and fading.
           <div
-            key={`${name}${y}`}
+            key={name}
             className={s.glBand({
               className: open < 1 ? "overflow-hidden" : undefined,
             })}

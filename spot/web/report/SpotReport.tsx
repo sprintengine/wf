@@ -1528,7 +1528,10 @@ function HourCards({
                 {waves?.from != null && compass(waves.from)}
                 {waves?.from != null && sea && " · "}
                 {seaWords}
-                {waves?.heightM == null && !sea && "No wave reading"}
+                {waves?.heightM == null &&
+                  waves?.from == null &&
+                  !sea &&
+                  "No wave reading"}
               </>
             ) : (
               seaWords

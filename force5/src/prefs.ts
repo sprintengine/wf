@@ -43,6 +43,26 @@ export type RowKey =
   | "tide";
 export type ForecastView = "table" | "blend" | "candles";
 /**
+ * The rows of the spot page's graphs a rider can switch on and off, over each
+ * graph (or in a phone's sheet): the Wind graph's stars, direction (with its
+ * figures and the gusts' marks), models, sky, rain, tide and current, and the
+ * Waves graph's wave stars, direction (with the period), models and swells
+ * (every swell train and the wind sea together). The Wind and Waves rows
+ * themselves are always there.
+ */
+export type SpotRowKey =
+  | "stars"
+  | "dir"
+  | "models"
+  | "sky"
+  | "rain"
+  | "tide"
+  | "current"
+  | "wstars"
+  | "wdir"
+  | "wmodels"
+  | "swells";
+/**
  * Which hours the dock shows: all of them, round the clock, or only those
  * from first light to last light, civil dawn to civil dusk (force5/src/sun.ts).
  */
@@ -51,6 +71,8 @@ export const NIGHT_HOURS: readonly NightHours[] = ["show", "hide"];
 
 export interface Prefs {
   rows: Record<RowKey, boolean>;
+  /** Which of the spot page's graph rows are shown (`SpotRowKey`). */
+  spotRows: Record<SpotRowKey, boolean>;
   /**
    * Rows the reader has switched by hand. Everything else follows its default,
    * and a default may depend on what the spot actually has rather than on a
@@ -115,6 +137,38 @@ export const ROW_KEYS: readonly RowKey[] = [
   "sea",
   "tide",
 ];
+export const SPOT_ROW_KEYS: readonly SpotRowKey[] = [
+  "stars",
+  "dir",
+  "models",
+  "sky",
+  "rain",
+  "tide",
+  "current",
+  "wstars",
+  "wdir",
+  "wmodels",
+  "swells",
+];
+/**
+ * The spot page's graph rows a rider sees first: what they decide with. The
+ * models' own lines, the current and the swells' split are for the days they
+ * matter, so they start off (the ruling of 2026-11-15).
+ */
+export const DEFAULT_SPOT_ROWS: Readonly<Record<SpotRowKey, boolean>> =
+  Object.freeze({
+    stars: true,
+    dir: true,
+    models: false,
+    sky: true,
+    rain: true,
+    tide: true,
+    current: false,
+    wstars: true,
+    wdir: true,
+    wmodels: false,
+    swells: false,
+  });
 export const VIEWS: readonly ForecastView[] = ["table", "blend", "candles"];
 export const PREFS_KEY = "force5.prefs.v1";
 /**
@@ -166,6 +220,7 @@ export const defaultPrefs = (): Prefs => ({
     sea: false,
     tide: true,
   },
+  spotRows: { ...DEFAULT_SPOT_ROWS },
   touchedRows: [],
   units: "kn",
   waveUnits: "ft",
@@ -256,6 +311,35 @@ function mergeRows(value: unknown, defaults: Record<RowKey, boolean>) {
     if (typeof row === "boolean") rows[key] = row;
   }
   return rows;
+}
+
+function mergeSpotRows(
+  value: unknown,
+  defaults: Record<SpotRowKey, boolean>,
+): Record<SpotRowKey, boolean> {
+  const rows = { ...defaults };
+  if (!value || typeof value !== "object") return rows;
+  for (const key of SPOT_ROW_KEYS) {
+    const row = (value as Record<string, unknown>)[key];
+    if (typeof row === "boolean") rows[key] = row;
+  }
+  return rows;
+}
+
+/**
+ * The spot page's graph rows as the rider has switched them, saved over what
+ * is stored now, so nothing else changed in another tab is undone.
+ */
+export function saveSpotRows(
+  spotRows: Record<SpotRowKey, boolean>,
+  storage: PrefsStorage | null = browserStorage(),
+): Prefs {
+  const next: Prefs = {
+    ...loadPrefs(storage),
+    spotRows: mergeSpotRows(spotRows, { ...DEFAULT_SPOT_ROWS }),
+  };
+  savePrefs(next, storage);
+  return next;
 }
 
 /**
@@ -377,6 +461,7 @@ export function loadPrefs(
       : null;
     return {
       rows: mergeRows(stored.rows, defaults.rows),
+      spotRows: mergeSpotRows(stored.spotRows, defaults.spotRows),
       touchedRows: Array.isArray(stored.touchedRows)
         ? ROW_KEYS.filter((key) => stored.touchedRows!.includes(key))
         : defaults.touchedRows,

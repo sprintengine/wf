@@ -1,4 +1,5 @@
 import {
+  allSpotRows,
   barName,
   expect,
   openFromMenu,
@@ -9,6 +10,7 @@ import {
   type Page,
 } from "./fixtures";
 import { SAMPLE_CLOCK, sampleStrip } from "./columns";
+import { withWaves } from "./waveFixtures";
 
 /**
  * A riding place's own page, /spot/<id>, against the synthetic sample site:
@@ -149,6 +151,7 @@ test("hovering the graph puts the hour on the cursor; a day card moves to its da
 test("the label beside the pointer names the row under it, the hour first", async ({
   page,
 }) => {
+  await allSpotRows(page);
   await withTides(page);
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
@@ -846,6 +849,7 @@ const picture = (page: Page) => page.locator("[data-spot-satellite]");
 test("under the week graph: the wind blend, the gusts, the waves, the current and the rain", async ({
   page,
 }) => {
+  await allSpotRows(page);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await withTides(page);
@@ -960,6 +964,7 @@ test("under the week graph: the wind blend, the gusts, the waves, the current an
 test("with no current published, the current's band says so", async ({
   page,
 }) => {
+  await allSpotRows(page);
   await page.route("**/weather/currents.json", (route) =>
     route.fulfill({ status: 404 }),
   );
@@ -1374,6 +1379,195 @@ async function swipe(
   await cdp.detach();
 }
 
+/** A graph's height on every frame for a while: a row opening or folding. */
+const heightsOver = (page: Page, selector: string, ms: number) =>
+  page.evaluate(
+    ([sel, ms]) =>
+      new Promise<number[]>((done) => {
+        const seen: number[] = [];
+        const start = performance.now();
+        const frame = () => {
+          seen.push(
+            document.querySelector(sel)!.getBoundingClientRect().height,
+          );
+          if (performance.now() - start < ms) requestAnimationFrame(frame);
+          else done(seen);
+        };
+        requestAnimationFrame(frame);
+      }),
+    [selector, ms] as const,
+  );
+
+test("over the graphs, the model tabs and the rows' switches; a row folds away and opens, and stays so", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await withTides(page);
+  await withWaves(page);
+  await page.goto("/spot/brandon");
+  await expect(heading(page)).toBeVisible({ timeout: 30000 });
+  const wind = page.locator('[data-week-section="wind"]');
+  const tabs = wind.locator('[data-graph-tabs="wind"]');
+  // The model the rider reads, the blend first: HARMONIE unless they chose.
+  const models = tabs.getByRole("group", { name: "Model" });
+  await expect(models.getByRole("button")).toHaveText([
+    "Blend",
+    "HARMONIE",
+    "ICON-EU",
+    "ECMWF",
+    "GFS",
+  ]);
+  await expect(
+    models.getByRole("button", { name: "HARMONIE" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  // The tabs name the models: the heading no longer lists them.
+  await expect(wind).not.toContainText("HARMONIE, ICON-EU");
+  // The rows' switches: the models and the current start off.
+  const on = (key: string) =>
+    tabs.locator(`[data-row-switch="${key}"]`).getAttribute("aria-pressed");
+  expect(
+    await tabs
+      .locator("[data-row-switch]")
+      .evaluateAll((els) => els.map((el) => el.textContent)),
+  ).toEqual(["Stars", "Direction", "Models", "Sky", "Rain", "Tide", "Current"]);
+  for (const key of ["stars", "dir", "sky", "rain", "tide"])
+    expect(await on(key)).toBe("true");
+  for (const key of ["models", "current"]) expect(await on(key)).toBe("false");
+  const names = wind.locator("[data-band-name]");
+  await expect(names).toHaveText([
+    "Stars",
+    "Wind",
+    "Direction",
+    "Sky",
+    "Rain",
+    "Tide",
+  ]);
+  await expect(page.locator('[data-band="wind-blend"]')).toHaveCount(0);
+  // The Waves graph's: the wave stars and the direction on, the models and
+  // the swells off.
+  const waveTabs = page.locator('[data-graph-tabs="waves"]');
+  await expect(waveTabs.locator("[data-row-switch]")).toHaveText([
+    "Wave stars",
+    "Direction",
+    "Models",
+    "Swells",
+  ]);
+  await expect(page.locator('[data-band="wave-blend"]')).toHaveCount(0);
+  await expect(
+    page.locator('[data-wave-svg] [data-band="swell1"]'),
+  ).toHaveCount(0);
+
+  // Models on: the row opens, its height easing in, and the graph grows.
+  const svg = "[data-graph-svg]";
+  const before = (await page.locator(svg).boundingBox())!.height;
+  await tabs.locator('[data-row-switch="models"]').click();
+  const opening = await heightsOver(page, svg, 700);
+  const after = opening.at(-1)!;
+  expect(after).toBeGreaterThan(before + 40);
+  // On its way, not in one jump.
+  expect(
+    opening.filter((h) => h > before + 1 && h < after - 1).length,
+  ).toBeGreaterThan(2);
+  await expect(
+    page.locator('[data-band="wind-blend"] path[data-model]').first(),
+  ).toBeAttached();
+  await expect(names).toContainText(["Models"]);
+  // Direction off: its arrows and figures fold away.
+  await tabs.locator('[data-row-switch="dir"]').click();
+  await expect(page.locator('[data-band="direction"]')).toHaveCount(0);
+  await expect(page.locator("[data-wind-figure]")).toHaveCount(0);
+  // The swells on, over the Waves graph.
+  await waveTabs.locator('[data-row-switch="swells"]').click();
+  await expect(
+    page.locator('[data-wave-svg] [data-band="swell1"]'),
+  ).toBeAttached();
+
+  // A model chosen: the rider's, for the map and the stars too.
+  await models.getByRole("button", { name: "ECMWF" }).click();
+  await expect(models.getByRole("button", { name: "ECMWF" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  const stored = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("force5.prefs.v1")!),
+  );
+  expect(stored.rider.starsFrom).toEqual({ model: "ecmwf" });
+  expect(stored.spotRows).toMatchObject({
+    models: true,
+    dir: false,
+    swells: true,
+  });
+
+  // The next visit: as the rider left it.
+  await page.reload();
+  await expect(heading(page)).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('[data-band="wind-blend"]')).toBeAttached();
+  await expect(page.locator('[data-band="direction"]')).toHaveCount(0);
+  await expect(
+    page
+      .locator('[data-graph-tabs="wind"]')
+      .getByRole("group", { name: "Model" })
+      .getByRole("button", { name: "ECMWF" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(errors).toEqual([]);
+});
+
+test("the table keeps every column, with the model tabs over it", async ({
+  page,
+}) => {
+  await withTides(page);
+  await page.goto("/spot/brandon");
+  await expect(heading(page)).toBeVisible({ timeout: 30000 });
+  await page
+    .locator('[data-graph-tabs="wind"] [data-row-switch="rain"]')
+    .click();
+  await page.getByRole("group", { name: "View" }).getByText("Table").click();
+  const table = page.locator("[data-hour-table]");
+  await expect(table).toBeVisible();
+  // The rows' switches are the graphs': the table still gives the rain.
+  await expect(table.locator("th", { hasText: "Rain" })).toHaveCount(1);
+  await expect(page.locator("[data-row-switch]")).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Model" })).toBeVisible();
+});
+
+test.describe("on a phone, the model and the rows", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test("are in one sheet, opened from the Wind heading", async ({ page }) => {
+    await withTides(page);
+    await page.goto("/spot/brandon");
+    await expect(heading(page)).toBeVisible({ timeout: 30000 });
+    // No tab rows over the graphs: one button beside the Graph | Table switch.
+    await expect(page.locator("[data-graph-tabs]")).toHaveCount(0);
+    const wind = page.locator('[data-week-section="wind"]');
+    const button = wind.locator("[data-rows-button]");
+    await expect(button).toHaveText("Model & rows");
+    await expect(page.locator('[data-band="current"]')).toHaveCount(0);
+    await button.click();
+    const sheet = page.getByRole("dialog", { name: "Model & rows" });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole("group", { name: "Model" })).toBeVisible();
+    await expect(sheet.getByRole("group", { name: "Wind rows" })).toBeVisible();
+    await expect(sheet.getByRole("group", { name: "Wave rows" })).toBeVisible();
+    // The sheet stands at the foot of the screen.
+    const box = (await sheet.boundingBox())!;
+    expect(box.y + box.height).toBeGreaterThan(830);
+    await sheet.locator('[data-row-switch="current"]').click();
+    await expect(sheet.locator('[data-row-switch="current"]')).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await sheet.getByRole("button", { name: "Close" }).click();
+    await expect(sheet).toBeHidden();
+    await expect(wind.locator("[data-band-name]").last()).toHaveText("Current");
+  });
+});
+
 test.describe("on a phone, the week graph", () => {
   test.use({
     viewport: { width: 390, height: 844 },
@@ -1403,6 +1597,7 @@ test.describe("on a phone, the week graph", () => {
   test("a finger drags the hours along the graph, and scrolls the page up and down it", async ({
     page,
   }) => {
+    await allSpotRows(page);
     await withTides(page);
     await page.goto("/spot/brandon");
     await expect(heading(page)).toBeVisible({ timeout: 30000 });
@@ -1453,6 +1648,7 @@ test.describe("on a phone, the week graph", () => {
   test("the band names fold away as a finger moves the hours on, and come back as it moves them back", async ({
     page,
   }) => {
+    await allSpotRows(page);
     await withTides(page);
     await page.goto("/spot/brandon");
     await expect(heading(page)).toBeVisible({ timeout: 30000 });

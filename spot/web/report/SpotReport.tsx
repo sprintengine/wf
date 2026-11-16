@@ -1,9 +1,10 @@
 /**
  * A riding place as a spot report: the spots around it in a thin strip, its
  * name, then the days and the time slider pinned at the top (TimeSlider.tsx),
- * what it is like now on small cards beside a small
- * satellite picture with the chart's loupe, and the graphs, each with the days
- * along its head (or the table), then any weather warnings and bathing water
+ * the chosen hour on small cards beside a small satellite picture with the
+ * chart's loupe, and the graphs, each with the days along its head and the
+ * model tabs and the rows' switches over it (or the table), then any weather
+ * warnings and bathing water
  * notices, and the spot's own notes. Two faces, sentence-case labels, the
  * stars as stars.
  */
@@ -11,6 +12,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -23,7 +25,12 @@ import {
   currentUnits,
 } from "../../../force5/src/currentReading";
 import { faintRose, loupeRose, roseScale } from "../../../force5/src/focus";
-import { modelName } from "../../../force5/src/lead";
+import {
+  BLEND_MODEL,
+  STARS_MODELS,
+  chosenModel,
+  modelName,
+} from "../../../force5/src/lead";
 import { modelEntry, modelHue } from "../../../force5/src/manifests";
 import { POINT_SOURCE_KM } from "../../../force5/src/pointSource";
 import { rainTint, DRY_MM_PER_HOUR } from "../../../force5/src/rain";
@@ -73,10 +80,24 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
+  SlidersHorizontal,
   X as Cross,
 } from "lucide-react";
-import { Button, Disclosure, NoticeMark, Segmented } from "../../../ui";
-import type { NightHours } from "../../../force5/src/prefs";
+import {
+  Button,
+  Chip,
+  Dialog,
+  Disclosure,
+  NoticeMark,
+  Segmented,
+} from "../../../ui";
+import {
+  loadPrefs,
+  saveSpotRows,
+  withRiderModel,
+  type NightHours,
+  type SpotRowKey,
+} from "../../../force5/src/prefs";
 import {
   afterDark,
   fold,
@@ -149,6 +170,7 @@ import {
 import { PhotoLoupe } from "./PhotoLoupe";
 import { sliderHours, sliderIndex, weekStart } from "./slider";
 import { TimeSlider } from "./TimeSlider";
+import { stack, useOpening, type Stack } from "./opening";
 import {
   besideMark,
   dayCard,
@@ -305,8 +327,9 @@ const styles = tv({
       "max-wide:col-span-full max-wide:col-start-1 max-wide:row-start-2",
       NO_RING,
     ],
-    // The week's two sections, Wind and then Waves, each under a heading
-    // with the models it reads beside it.
+    // The week's two sections, Wind and then Waves, each under a heading:
+    // the Graph | Table switch beside Wind's (and a phone's Model & rows
+    // button at its end), the wave models Waves reads beside Waves'.
     weekHead:
       "mt-3 mb-1 flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1",
     weekTitle: "flex items-center gap-3",
@@ -343,6 +366,16 @@ const styles = tv({
     td: "border-0 border-t border-line px-3 py-2.5 whitespace-nowrap",
     narrow: "hidden wide:table-cell",
     guide: "grid gap-3 wide:grid-cols-2 cards:grid-cols-4",
+    // Over the Wind graph on a desktop: the model tabs, a rule, and the
+    // rows' switches; over the Waves graph, its rows' switches.
+    tabsRow: "mb-2 flex flex-wrap items-center gap-x-3 gap-y-2",
+    tabsRule: "h-5 w-px shrink-0 bg-line",
+    modelTabs: "max-w-full",
+    switches: "flex flex-wrap items-center gap-1.5",
+    // A phone's sheet of the model and the rows.
+    sheetPart: "grid gap-5",
+    sheetGroup: "grid justify-items-start gap-2",
+    sheetName: "font-body text-label font-medium text-ink-muted",
     // The tide switch, small, over the picture's corner.
     tideSwitch: "absolute top-2 left-2 z-1 shadow-float",
     gd: "rounded-surface bg-sunken on-card p-4 wide:px-5",
@@ -527,6 +560,7 @@ export function SpotReport({
   blendModels = [],
   waveModel = null,
   point = null,
+  onRider,
   actions,
   notices,
 }: {
@@ -557,6 +591,12 @@ export function SpotReport({
   waveModel?: string | null;
   /** A point on the open water's report: no shore, so no stars. */
   point?: ReportPoint | null;
+  /**
+   * The rider changed: here, their model, chosen on the tabs over the Wind
+   * graph (or in a phone's sheet), the one the map draws and the stars rate.
+   * Without it there are no model tabs.
+   */
+  onRider?: (rider: Rider) => void;
   actions?: React.ReactNode;
   notices?: React.ReactNode;
 }) {
@@ -805,6 +845,113 @@ export function SpotReport({
       ]}
     />
   );
+  // The graphs' rows, as the rider last switched them (force5.prefs.v1): a
+  // row switched off folds away, and stays off on the next visit.
+  const [rowsOn, setRowsOn] = useState(() => loadPrefs().spotRows);
+  const switchRow = (key: SpotRowKey) => {
+    const next = { ...rowsOn, [key]: !rowsOn[key] };
+    setRowsOn(next);
+    saveSpotRows(next);
+  };
+  const wide = useWide();
+  const [sheet, setSheet] = useState(false);
+  // Grown past a phone's width, the sheet is gone: it does not come back
+  // unasked when the window narrows again.
+  useEffect(() => {
+    if (wide) setSheet(false);
+  }, [wide]);
+  // The switches name only rows the place has: no stars at a point on the
+  // open water, no Models row without models, no Swells without a split.
+  const hasSwells = !!seaShown?.rows.some((r) =>
+    PART_ROWS.some(([key]) => (partOf(r, key)?.heightM ?? 0) >= MIN_TRAIN_M),
+  );
+  const windSwitches = (
+    [
+      ["stars", "Stars", !point],
+      ["dir", "Direction", true],
+      ["models", "Models", models.length > 0],
+      ["sky", "Sky", true],
+      ["rain", "Rain", true],
+      ["tide", "Tide", true],
+      ["current", "Current", true],
+    ] as const
+  ).filter(([, , has]) => has);
+  const waveSwitches = seaShown
+    ? (
+        [
+          ["wstars", "Wave stars", !point],
+          ["wdir", "Direction", true],
+          ["wmodels", "Models", true],
+          ["swells", "Swells", hasSwells],
+        ] as const
+      ).filter(([, , has]) => has)
+    : [];
+  const rowSwitches = (
+    list: readonly (readonly [SpotRowKey, string, boolean])[],
+    section: "Wind" | "Wave",
+  ) => (
+    <div
+      className={s.switches()}
+      role="group"
+      aria-label={`${section} rows`}
+      data-row-switches={section.toLowerCase()}
+    >
+      {list.map(([key, name]) => (
+        <Chip
+          key={key}
+          pressed={rowsOn[key]}
+          onClick={() => switchRow(key)}
+          data-row-switch={key}
+        >
+          {name}
+        </Chip>
+      ))}
+    </div>
+  );
+  // The model the rider reads, the one the map draws and the stars rate:
+  // the blend first, then each model.
+  const model = chosenModel(rider.starsFrom);
+  const modelTabs = onRider ? (
+    <Segmented<string>
+      aria-label="Model"
+      size="sm"
+      className={s.modelTabs()}
+      value={model}
+      onChange={(id) => onRider(withRiderModel(rider, id))}
+      options={[BLEND_MODEL, ...STARS_MODELS].map((id) => ({
+        value: id,
+        label: modelName(id),
+      }))}
+    />
+  ) : null;
+  // On a desktop, over each graph: the Wind graph's model tabs and its rows,
+  // and the Waves graph's rows. On a phone, one button in the Wind heading
+  // opens a sheet with all of them.
+  const windTabs = wide ? (
+    <div className={s.tabsRow()} data-graph-tabs="wind">
+      {modelTabs}
+      {modelTabs && <span className={s.tabsRule()} aria-hidden="true" />}
+      {rowSwitches(windSwitches, "Wind")}
+    </div>
+  ) : null;
+  const waveTabs =
+    wide && waveSwitches.length > 0 ? (
+      <div className={s.tabsRow()} data-graph-tabs="waves">
+        {rowSwitches(waveSwitches, "Wave")}
+      </div>
+    ) : null;
+  const sheetButton = wide ? null : (
+    <Button
+      size="sm"
+      variant="soft"
+      aria-haspopup="dialog"
+      onClick={() => setSheet(true)}
+      data-rows-button
+    >
+      <SlidersHorizontal size={14} strokeWidth={1.75} aria-hidden="true" />
+      Model &amp; rows
+    </Button>
+  );
   // The row the cards read: the chosen hour's, or now's.
   const heroRow = shown ?? nowRow;
   const heroIndex = heroRow ? rows.indexOf(heroRow) : -1;
@@ -1015,11 +1162,16 @@ export function SpotReport({
                 dayWindow={dayWindow}
                 arrowsAt={arrowsAt}
                 switcher={viewSwitch}
+                aside={sheetButton}
+                rowsOn={rowsOn}
+                windTabs={windTabs}
+                waveTabs={waveTabs}
               />
             ) : (
               <HourTable
                 forecast={forecast}
                 switcher={viewSwitch}
+                tools={wide ? modelTabs : sheetButton}
                 rows={days[dayAt]?.day.rows ?? []}
                 date={days[dayAt]?.day.date ?? ""}
                 now={now}
@@ -1029,6 +1181,35 @@ export function SpotReport({
                 rated={!point}
                 rain={rain}
               />
+            )}
+            {!wide && (
+              <Dialog
+                open={sheet}
+                title="Model & rows"
+                onClose={() => setSheet(false)}
+                // A sheet from the foot of the screen up to the page's own
+                // phone width, not the kit's narrower one.
+                className="max-wide:mb-0 max-wide:w-full max-wide:max-w-none max-wide:rounded-b-none"
+              >
+                <div className={s.sheetPart()} data-rows-sheet>
+                  {modelTabs && (
+                    <div className={s.sheetGroup()}>
+                      <span className={s.sheetName()}>Model</span>
+                      {modelTabs}
+                    </div>
+                  )}
+                  <div className={s.sheetGroup()}>
+                    <span className={s.sheetName()}>Wind rows</span>
+                    {rowSwitches(windSwitches, "Wind")}
+                  </div>
+                  {waveSwitches.length > 0 && (
+                    <div className={s.sheetGroup()}>
+                      <span className={s.sheetName()}>Wave rows</span>
+                      {rowSwitches(waveSwitches, "Wave")}
+                    </div>
+                  )}
+                </div>
+              </Dialog>
             )}
           </section>
 
@@ -1763,8 +1944,9 @@ function DayButton({
  * The week graph is two sections on the same hours, Wind and then Waves, each
  * a stack of bands: its name, its height and the gap under it. The wind's
  * blend sits under its direction; a point on the water reads one model at a
- * time, so it has no blend. The stars' strip keeps its place without stars,
- * so the wind band starts where it always does.
+ * time, so it has no blend, and has no stars, so no stars' strip. Every band
+ * but the wind's own is the rider's to switch off (`SpotRowKey`), and folds
+ * away when they do (./opening.ts).
  */
 const WIND_BANDS = [
   ["stars", PIPS_HEIGHT, 8],
@@ -1820,32 +2002,6 @@ const WAVE_NAME: Record<WaveBand, string> = {
   wblend: "Models",
   ...(Object.fromEntries(PART_ROWS) as Record<PartRow, string>),
 };
-
-interface Stack<K extends string> {
-  at: Partial<Record<K, readonly [number, number]>>;
-  /** Where the hours run along the foot. */
-  axis: number;
-  height: number;
-}
-
-/** Where each band of a section sits, the hours' axis under the last, and the height. */
-function stack<K extends string>(
-  bands: readonly (readonly [K, number, number])[],
-  top: number,
-  keep: (band: K) => boolean,
-): Stack<K> {
-  const at: Partial<Record<K, readonly [number, number]>> = {};
-  let y = top;
-  let gap = 0;
-  for (const [band, h, g] of bands) {
-    if (!keep(band)) continue;
-    at[band] = [y, h];
-    y += h + g;
-    gap = g;
-  }
-  const axis = y - gap + 8;
-  return { at, axis, height: axis + 22 };
-}
 
 /** An arrow pointing up, turned to a bearing: the wind's, the sea's, the water's. */
 const ARROW = "M0 6V-6M-3.5 -2.5L0 -6.5l3.5 4";
@@ -1949,6 +2105,10 @@ function Graph({
   dayWindow,
   arrowsAt,
   switcher,
+  aside = null,
+  rowsOn,
+  windTabs = null,
+  waveTabs = null,
 }: {
   rows: SpotRow[];
   days: { day: { date: string }; sun: DaySun; midnight: number }[];
@@ -2007,6 +2167,14 @@ function Graph({
   arrowsAt: HTMLDivElement | null;
   /** The Graph | Table switch, beside the Wind section's title. */
   switcher: React.ReactNode;
+  /** At the Wind heading's end: a phone's Model & rows button. */
+  aside?: React.ReactNode;
+  /** Which rows the rider has switched on (force5.prefs.v1 `spotRows`). */
+  rowsOn: Readonly<Record<SpotRowKey, boolean>>;
+  /** Over the Wind graph: the model tabs and its rows' switches. */
+  windTabs?: React.ReactNode;
+  /** Over the Waves graph: its rows' switches. */
+  waveTabs?: React.ReactNode;
 }) {
   const speed = useSpeed();
   const heights = useHeights();
@@ -2041,11 +2209,31 @@ function Graph({
   // Which graph says the hour on a desktop, where one tag does: the one the
   // pointer is over, or the keys are in; a phone says it on both.
   const [tagAt, setTagAt] = useState<Section>("wind");
-  const lower = stack(WIND_BANDS, RAIL, (band) =>
-    band === "blend" ? models.length > 0 : true,
+  // How far open each row is: a row switched off folds away, and one
+  // switched on opens, the rows under it and the section's foot moving with it.
+  const opened = useOpening(rowsOn);
+  // Without stars (a point on the open water) no Stars row, and without
+  // models no Models row, whatever the switches say.
+  const lower = stack(
+    WIND_BANDS,
+    RAIL,
+    (band) =>
+      band === "blend" ? models.length > 0 : band === "stars" ? rated : true,
+    {
+      stars: opened.stars,
+      dir: opened.dir,
+      blend: opened.models,
+      sky: opened.sky,
+      rain: opened.rain,
+      tide: opened.tide,
+      current: opened.current,
+    },
   );
   const GH = lower.height;
-  const ROW = lower.at as Record<WindBand, readonly [number, number]>;
+  const ROW = lower.at;
+  // A row part open is drawn whole and cut to its open share, fading as it
+  // goes: each its own clip, under this graph's own name.
+  const clipName = `spot-row-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   // The hours start where the wind does: the first hour any model has, or
   // now if that is still to come. Today's earlier hours have no forecast
   // to draw, and a blank stretch is not worth a scroll.
@@ -2395,7 +2583,7 @@ function Graph({
     window.addEventListener("pointerup", up);
   };
   const windRows = rows.filter((r) => r.hour.wind && seen(r));
-  const [wy, wh] = ROW.wind;
+  const [wy, wh] = ROW.wind!;
   const Y = (k: number) => wy + wh - (Math.min(k, 36) / 36) * wh;
   /** Hours in runs, each broken where a night is left out between two. */
   const runs = <T extends { time: number }>(items: readonly T[]): T[][] => {
@@ -2472,7 +2660,8 @@ function Graph({
     .filter((run) => run.length > 1)
     .map((run) => smoothPath(run.map((r) => [rx(r), Y(r.windKn)] as const)))
     .join("");
-  const [ty, th] = ROW.tide;
+  // The tide's scale, where its row is (kept for the launch's depth too).
+  const [ty, th] = ROW.tide ?? [0, 60];
   const tideMax = Math.max(4.5, ...turns.map((t) => t.height)) + 0.3;
   const TY = (m: number) => ty + th - (m / tideMax) * (th - 6);
   const curve = traced(
@@ -2800,7 +2989,9 @@ function Graph({
     }
     const rate = rowRain(rain, r);
     return [
-      r.hour.wind && hour % figureEvery === 0 && whole(x, 20) ? ROW.dir : null,
+      ROW.dir && r.hour.wind && hour % figureEvery === 0 && whole(x, 20)
+        ? ROW.dir
+        : null,
       lower.at.rain &&
       hour % 3 === 0 &&
       rate !== null &&
@@ -2869,17 +3060,60 @@ function Graph({
     </>
   );
   const waveStack = waves
-    ? stack(WAVE_BANDS, RAIL - 4, (band) =>
-        // A train that stays under this all week has no row of its own; a
-        // point on the open water has no beach, and no wave stars, as it has
-        // no wind stars.
-        band in WAVE_PART
-          ? waves.rows.some(
-              (r) => (partOf(r, band as PartRow)?.heightM ?? 0) >= MIN_TRAIN_M,
-            )
-          : band !== "wstars" || rated,
+    ? stack(
+        WAVE_BANDS,
+        RAIL - 4,
+        (band) =>
+          // A train that stays under this all week has no row of its own; a
+          // point on the open water has no beach, and no wave stars, as it
+          // has no wind stars.
+          band in WAVE_PART
+            ? waves.rows.some(
+                (r) =>
+                  (partOf(r, band as PartRow)?.heightM ?? 0) >= MIN_TRAIN_M,
+              )
+            : band !== "wstars" || rated,
+        {
+          wstars: opened.wstars,
+          // The period goes with the direction, and every train with the
+          // others: Swells is the swells and the wind sea together.
+          wdir: opened.wdir,
+          period: opened.wdir,
+          wblend: opened.wmodels,
+          swell1: opened.swells,
+          swell2: opened.swells,
+          swell3: opened.swells,
+          windsea: opened.swells,
+        },
       )
     : null;
+  /** The clip and fade of a section's row while it is part open, else none. */
+  const part = (at: Section, band: string) => {
+    const f = (at === "wind" ? lower.open : waveStack?.open)?.[
+      band as WindBand & WaveBand
+    ];
+    return f === undefined || f >= 1
+      ? {}
+      : { clipPath: `url(#${clipName}-${at}-${band})`, opacity: f };
+  };
+  /**
+   * The clips of a section's rows part open: each its open share, and the
+   * gap over it, where a row's figures may stand above its top.
+   */
+  const clips = (at: Section) => {
+    const st: Stack<string> | null = at === "wind" ? lower : waveStack;
+    if (!st) return null;
+    return Object.entries(st.open)
+      .filter(([, f]) => f! < 1)
+      .map(([band, f]) => {
+        const [y, h] = st.at[band]!;
+        return (
+          <clipPath key={band} id={`${clipName}-${at}-${band}`}>
+            <rect x={0} y={y - 12} width={W} height={h * f! + 12} />
+          </clipPath>
+        );
+      });
+  };
   // Where the rows of the swells have run out of forecast, scrolled past their
   // last hour: said once, at the first such row.
   const partsEnded = (() => {
@@ -3329,7 +3563,6 @@ function Graph({
     window.addEventListener("pointerdown", away);
     return () => window.removeEventListener("pointerdown", away);
   }, [phone, card]);
-  const windModels = models.map((m) => modelName(m.id)).join(", ");
   const waveModels = waves?.lines.map((l) => waveModelName(l.id)).join(", ");
   return (
     <>
@@ -3369,35 +3602,34 @@ function Graph({
             </h3>
             {switcher}
           </div>
-          {windModels && (
-            <span className={s.weekSub()}>
-              {wide ? windModels : `${models.length} models`}
-            </span>
-          )}
+          {aside}
         </div>
+        {windTabs}
         <div className={s.gbox()} ref={gbox}>
           {dayHeads("wind")}
           <BandNames
             height={GH}
             folded={folded}
-            bands={(Object.keys(ROW) as WindBand[])
-              .filter((band) => rated || band !== "stars")
-              .map((band) => [
+            bands={(Object.keys(ROW) as WindBand[]).map((band) => {
+              const [y, h] = ROW[band]!;
+              return [
                 WIND_NAME[band],
                 band === "stars"
-                  ? ROW.stars[0] + 10
+                  ? y + 10
                   : band === "wind"
-                    ? ROW.wind[0] + 40
+                    ? y + 40
                     : band === "dir"
-                      ? ROW.dir[0] + 18
+                      ? y + 18
                       : band === "tide"
-                        ? ROW.tide[0] + 30
+                        ? y + 30
                         : band === "sky"
-                          ? ROW.sky[0] + 20
-                          : ROW[band][0] + Math.min(ROW[band][1], 40) / 2,
-                ROW[band],
+                          ? y + 20
+                          : y + Math.min(h, 40) / 2,
+                [y, h],
                 band === "dir" && speed.unit ? `${speed.unit}, gust` : null,
-              ])}
+                lower.open[band] ?? 1,
+              ];
+            })}
           />
           <div {...graphProps("wind")} ref={ref} data-spot-graph>
             <div className="relative" style={{ width: W }}>
@@ -3426,6 +3658,7 @@ function Graph({
                       />
                     ))}
                   </linearGradient>
+                  {clips("wind")}
                   {deepAt !== null && (
                     <clipPath id="spot-deep">
                       <rect x={0} y={0} width={W} height={TY(deepAt)} />
@@ -3433,20 +3666,25 @@ function Graph({
                   )}
                 </defs>
                 {frame(GH, ay, true)}
-                {rows.map((r, i) =>
-                  // Only where there are stars: an hour rated none says so in its
-                  // label, not with a grey dash the length of the night.
-                  r.rating?.stars && seen(r) ? (
-                    <Pips
-                      key={i}
-                      x={X(r.time) + 2}
-                      y={ROW.stars[0]}
-                      width={r.step * px - 4}
-                      n={r.rating.stars}
-                      lit="fill-stars-4"
-                      data-stars={r.rating.stars}
-                    />
-                  ) : null,
+                {ROW.stars && (
+                  <g data-band="stars" {...part("wind", "stars")}>
+                    {rows.map((r, i) =>
+                      // Only where there are stars: an hour rated none says so
+                      // in its label, not with a grey dash the length of the
+                      // night.
+                      r.rating?.stars && seen(r) ? (
+                        <Pips
+                          key={i}
+                          x={X(r.time) + 2}
+                          y={ROW.stars![0]}
+                          width={r.step * px - 4}
+                          n={r.rating.stars}
+                          lit="fill-stars-4"
+                          data-stars={r.rating.stars}
+                        />
+                      ) : null,
+                    )}
+                  </g>
                 )}
                 {spread && (
                   <path d={spread} className="fill-ink" fillOpacity={0.07} />
@@ -3534,126 +3772,136 @@ function Graph({
                     {speed.say(k)}
                   </text>
                 ))}
-                {/* What the gusts do to the stars, hour by hour: a bar under the
-                  figures, never through them. */}
-                {rated &&
-                  windRows.map((r, i) => {
-                    const g = gustReading(
-                      r.hour.wind!.wind_kn,
-                      r.hour.wind!.gust_kn,
-                      rider,
-                    );
-                    return g?.kind === "costs" || g?.kind === "over" ? (
-                      <rect
-                        key={i}
-                        x={X(r.time) + 1}
-                        y={ROW.dir[0] + 38}
-                        width={Math.max(1, r.step * px - 2)}
-                        height={3}
-                        rx={1.5}
-                        className="fill-gust"
-                        fillOpacity={g.kind === "over" ? 0.9 : 0.45}
-                        data-gust-tint={g.kind}
-                      />
-                    ) : null;
-                  })}
-                {windRows
-                  .filter(
-                    (r) =>
-                      dublinHour(r.time) % figureEvery === 0 &&
-                      whole(mid(r), 20),
-                  )
-                  .map((r, i) => (
-                    <g key={i}>
-                      <g
-                        transform={`translate(${mid(r)},${ROW.dir[0] + 9}) rotate(${r.hour.wind!.direction_deg + 180})`}
-                      >
-                        <path
-                          d={ARROW}
-                          className={
-                            isOff(r.shore)
-                              ? "fill-none stroke-pen"
-                              : "fill-none stroke-ink"
-                          }
-                          strokeWidth={1.8}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </g>
-                      <text
-                        x={mid(r)}
-                        y={ROW.dir[0] + 34}
-                        textAnchor="middle"
-                        className={`fill-ink font-body text-body font-semibold tabular-nums ${halo(r.time)}`}
-                        data-wind-figure={speed.say(r.hour.wind!.wind_kn)}
-                      >
-                        {speed.say(r.hour.wind!.wind_kn)}
-                        {speed.gust(
+                {ROW.dir && (
+                  <g data-band="direction" {...part("wind", "dir")}>
+                    {/* What the gusts do to the stars, hour by hour: a bar under the
+                    figures, never through them. */}
+                    {rated &&
+                      windRows.map((r, i) => {
+                        const g = gustReading(
                           r.hour.wind!.wind_kn,
                           r.hour.wind!.gust_kn,
-                        ) !== null && (
-                          <tspan
-                            dx={3}
-                            dy={-6}
-                            className="fill-gust-ink text-caption"
-                            data-gust={speed.say(
-                              speed.gust(
-                                r.hour.wind!.wind_kn,
-                                r.hour.wind!.gust_kn,
-                              )!,
-                            )}
+                          rider,
+                        );
+                        return g?.kind === "costs" || g?.kind === "over" ? (
+                          <rect
+                            key={i}
+                            x={X(r.time) + 1}
+                            y={ROW.dir![0] + 38}
+                            width={Math.max(1, r.step * px - 2)}
+                            height={3}
+                            rx={1.5}
+                            className="fill-gust"
+                            fillOpacity={g.kind === "over" ? 0.9 : 0.45}
+                            data-gust-tint={g.kind}
+                          />
+                        ) : null;
+                      })}
+                    {windRows
+                      .filter(
+                        (r) =>
+                          dublinHour(r.time) % figureEvery === 0 &&
+                          whole(mid(r), 20),
+                      )
+                      .map((r, i) => (
+                        <g key={i}>
+                          <g
+                            transform={`translate(${mid(r)},${ROW.dir![0] + 9}) rotate(${r.hour.wind!.direction_deg + 180})`}
                           >
-                            {speed.say(
-                              speed.gust(
-                                r.hour.wind!.wind_kn,
-                                r.hour.wind!.gust_kn,
-                              )!,
+                            <path
+                              d={ARROW}
+                              className={
+                                isOff(r.shore)
+                                  ? "fill-none stroke-pen"
+                                  : "fill-none stroke-ink"
+                              }
+                              strokeWidth={1.8}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </g>
+                          <text
+                            x={mid(r)}
+                            y={ROW.dir![0] + 34}
+                            textAnchor="middle"
+                            className={`fill-ink font-body text-body font-semibold tabular-nums ${halo(r.time)}`}
+                            data-wind-figure={speed.say(r.hour.wind!.wind_kn)}
+                          >
+                            {speed.say(r.hour.wind!.wind_kn)}
+                            {speed.gust(
+                              r.hour.wind!.wind_kn,
+                              r.hour.wind!.gust_kn,
+                            ) !== null && (
+                              <tspan
+                                dx={3}
+                                dy={-6}
+                                className="fill-gust-ink text-caption"
+                                data-gust={speed.say(
+                                  speed.gust(
+                                    r.hour.wind!.wind_kn,
+                                    r.hour.wind!.gust_kn,
+                                  )!,
+                                )}
+                              >
+                                {speed.say(
+                                  speed.gust(
+                                    r.hour.wind!.wind_kn,
+                                    r.hour.wind!.gust_kn,
+                                  )!,
+                                )}
+                              </tspan>
                             )}
-                          </tspan>
-                        )}
-                      </text>
-                    </g>
-                  ))}
-                {curve.line && (
-                  <>
-                    <path d={curve.area} className="fill-sea-3" />
-                    {deepAt !== null && (
-                      <path
-                        d={curve.area}
-                        className="fill-depth"
-                        fillOpacity={0.9}
-                        clipPath="url(#spot-deep)"
-                      />
-                    )}
-                    <path
-                      d={curve.line}
-                      className="fill-none stroke-ink-2"
-                      strokeWidth={1.4}
-                    />
-                  </>
+                          </text>
+                        </g>
+                      ))}
+                  </g>
                 )}
-                {turns
-                  .filter(
-                    (t) =>
-                      t.time >= start &&
-                      t.time <= end &&
-                      seen(t) &&
-                      X(t.time) >= from - 34 &&
-                      X(t.time) <= scrolled + width + 34,
-                  )
-                  .map((t, i) => (
-                    <text
-                      key={i}
-                      x={clampX(X(t.time), 18)}
-                      y={
-                        t.tide === "high" ? TY(t.height) - 6 : TY(t.height) + 15
-                      }
-                      textAnchor="middle"
-                      className={`fill-ink-2 font-body text-caption ${halo(t.time)}`}
-                    >
-                      {clock(t.time)}
-                    </text>
-                  ))}
+                {ROW.tide && (
+                  <g data-band="tide" {...part("wind", "tide")}>
+                    {curve.line && (
+                      <>
+                        <path d={curve.area} className="fill-sea-3" />
+                        {deepAt !== null && (
+                          <path
+                            d={curve.area}
+                            className="fill-depth"
+                            fillOpacity={0.9}
+                            clipPath="url(#spot-deep)"
+                          />
+                        )}
+                        <path
+                          d={curve.line}
+                          className="fill-none stroke-ink-2"
+                          strokeWidth={1.4}
+                        />
+                      </>
+                    )}
+                    {turns
+                      .filter(
+                        (t) =>
+                          t.time >= start &&
+                          t.time <= end &&
+                          seen(t) &&
+                          X(t.time) >= from - 34 &&
+                          X(t.time) <= scrolled + width + 34,
+                      )
+                      .map((t, i) => (
+                        <text
+                          key={i}
+                          x={clampX(X(t.time), 18)}
+                          y={
+                            t.tide === "high"
+                              ? TY(t.height) - 6
+                              : TY(t.height) + 15
+                          }
+                          textAnchor="middle"
+                          className={`fill-ink-2 font-body text-caption ${halo(t.time)}`}
+                        >
+                          {clock(t.time)}
+                        </text>
+                      ))}
+                  </g>
+                )}
                 <LowerBands
                   rows={rows}
                   seen={seen}
@@ -3670,6 +3918,7 @@ function Graph({
                   rain={rain}
                   units={units}
                   whole={whole}
+                  cut={(band) => part("wind", band)}
                 />
                 {nightOver(GH)}
                 {marks("wind", ay)}
@@ -3688,7 +3937,11 @@ function Graph({
                 // Said once, and kept in view as the hours scroll under it.
                 <div
                   className="pointer-events-none absolute left-0"
-                  style={{ top: lower.at.current[0] + 10, width: W }}
+                  style={{
+                    top: lower.at.current[0] + 10,
+                    width: W,
+                    opacity: lower.open.current,
+                  }}
                 >
                   <span
                     className="sticky inline-block font-body text-caption text-ink-muted"
@@ -3700,31 +3953,46 @@ function Graph({
                 </div>
               )}
               {railMarks("wind")}
-              {rows
-                .filter(
-                  (r) =>
-                    r.hour.weather &&
-                    dublinHour(r.time) % figureEvery === 0 &&
-                    seen(r) &&
-                    whole(mid(r) + 11, 22),
-                )
-                .map((r, i) => (
-                  <span
-                    key={i}
-                    className={s.sky({
-                      className: halo(r.time) ? s.skyNight() : undefined,
-                    })}
-                    style={{ left: mid(r) - 10, top: ROW.sky[0] + 4 }}
-                  >
-                    <SkyGlyph
-                      weather={r.hour.weather!}
-                      size={16}
-                      dark={!r.hour.daylight}
-                    />
-                    {r.hour.weather!.air_c !== null &&
-                      `${Math.round(r.hour.weather!.air_c)}°`}
-                  </span>
-                ))}
+              {ROW.sky && (
+                // The sky's glyphs, cut to the row's open share as it opens
+                // or folds, as the drawn rows are.
+                <div
+                  className="pointer-events-none absolute left-0 overflow-hidden"
+                  style={{
+                    top: ROW.sky[0],
+                    height: ROW.sky[1] * (lower.open.sky ?? 1),
+                    width: W,
+                    opacity: lower.open.sky,
+                  }}
+                  data-band="sky"
+                >
+                  {rows
+                    .filter(
+                      (r) =>
+                        r.hour.weather &&
+                        dublinHour(r.time) % figureEvery === 0 &&
+                        seen(r) &&
+                        whole(mid(r) + 11, 22),
+                    )
+                    .map((r, i) => (
+                      <span
+                        key={i}
+                        className={s.sky({
+                          className: halo(r.time) ? s.skyNight() : undefined,
+                        })}
+                        style={{ left: mid(r) - 10, top: 4 }}
+                      >
+                        <SkyGlyph
+                          weather={r.hour.weather!}
+                          size={16}
+                          dark={!r.hour.daylight}
+                        />
+                        {r.hour.weather!.air_c !== null &&
+                          `${Math.round(r.hour.weather!.air_c)}°`}
+                      </span>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
           {card?.section === "wind" && labelFor("wind", card)}
@@ -3742,6 +4010,7 @@ function Graph({
               </span>
             )}
           </div>
+          {waveTabs}
           <div className={s.gbox()} ref={waveBox}>
             {dayHeads("waves")}
             <BandNames
@@ -3758,6 +4027,7 @@ function Graph({
                       : y + Math.min(h, 40) / 2,
                   [y, h],
                   band === "wdir" ? heights.unit : null,
+                  waveStack.open[band] ?? 1,
                 ];
               })}
             />
@@ -3771,6 +4041,7 @@ function Graph({
                   {...svgProps("waves")}
                   data-wave-svg
                 >
+                  <defs>{clips("waves")}</defs>
                   {frame(waveStack.height, waveStack.axis, false)}
                   <WaveBands
                     rows={rows}
@@ -3786,6 +4057,7 @@ function Graph({
                     whole={whole}
                     halo={halo}
                     pointed={card?.section === "waves" ? card.band : null}
+                    cut={(band) => part("waves", band)}
                   />
                   {nightOver(waveStack.height)}
                   {marks("waves", waveStack.axis)}
@@ -3833,7 +4105,8 @@ function Graph({
             {/* A point reads one model an hour: nothing to disagree. */}
             {rated && <KeyItem mark="spread">Where models disagree</KeyItem>}
           </KeyGroup>
-          {models.length > 0 && (
+          {/* The key says what is drawn: a row switched off has none. */}
+          {ROW.blend && (
             <KeyGroup
               name={`Models${speed.unit ? `, ${speed.unit}` : ""}`}
               data-models-legend
@@ -3868,22 +4141,31 @@ function Graph({
               )}
             </KeyGroup>
           )}
-          {rated && (
+          {rated && ROW.dir && (
             <KeyGroup name="Gusts">
               <KeyItem mark="costs">Costs a star</KeyItem>
               <KeyItem mark="over">Past too much: no stars</KeyItem>
             </KeyGroup>
           )}
-          <KeyGroup name="Sky and water" wide>
-            {!dark && <KeyItem mark="dark">Dark</KeyItem>}
-            <KeyItem mark="rain">Rain, mm/h</KeyItem>
-            <KeyItem mark="current">
-              Current: where it runs, in {unitLabel(currentUnits(units))}
-            </KeyItem>
-            {deepAt !== null && (
-              <KeyItem mark="depth">1 m of water or more at the launch</KeyItem>
-            )}
-          </KeyGroup>
+          {(!dark ||
+            ROW.rain ||
+            ROW.current ||
+            (ROW.tide && deepAt !== null)) && (
+            <KeyGroup name="Sky and water" wide>
+              {!dark && <KeyItem mark="dark">Dark</KeyItem>}
+              {ROW.rain && <KeyItem mark="rain">Rain, mm/h</KeyItem>}
+              {ROW.current && (
+                <KeyItem mark="current">
+                  Current: where it runs, in {unitLabel(currentUnits(units))}
+                </KeyItem>
+              )}
+              {ROW.tide && deepAt !== null && (
+                <KeyItem mark="depth">
+                  1 m of water or more at the launch
+                </KeyItem>
+              )}
+            </KeyGroup>
+          )}
         </div>
         {waves && waveStack && (
           <div className={s.legend()} data-wave-legend>
@@ -3898,46 +4180,52 @@ function Graph({
               {waves.lines.length > 1 && (
                 <KeyItem mark="spread">Where models disagree</KeyItem>
               )}
-              <KeyItem mark="waves">
-                Arrow: where they run; figure:{" "}
-                {heights.unit === "ft" ? "feet" : "metres"}
-              </KeyItem>
-            </KeyGroup>
-            <KeyGroup
-              name={`Models, ${heights.unit}`}
-              wide
-              data-wave-models-legend
-            >
-              {waves.lines.map((l) => {
-                const own = waveAt?.models[l.id];
-                const detail = modelEntry(l.id)?.detail;
-                return (
-                  <KeyItem
-                    key={l.id}
-                    stroke={waveHue(l.id).stroke}
-                    dashed={DASHED.has(l.id)}
-                    figure={own ? heights.figure(own.height_m) : ""}
-                    data-model-key={l.id}
-                  >
-                    {waveModelName(l.id)}
-                    {detail && (
-                      <span className="text-ink-muted"> · {detail}</span>
-                    )}
-                  </KeyItem>
-                );
-              })}
-              {waves.blended && (
-                <KeyItem
-                  mark="blend"
-                  figure={
-                    waveAt?.blendM != null ? heights.figure(waveAt.blendM) : ""
-                  }
-                  data-model-key="blend"
-                >
-                  Blend
+              {waveStack.at.wdir && (
+                <KeyItem mark="waves">
+                  Arrow: where they run; figure:{" "}
+                  {heights.unit === "ft" ? "feet" : "metres"}
                 </KeyItem>
               )}
             </KeyGroup>
+            {waveStack.at.wblend && (
+              <KeyGroup
+                name={`Models, ${heights.unit}`}
+                wide
+                data-wave-models-legend
+              >
+                {waves.lines.map((l) => {
+                  const own = waveAt?.models[l.id];
+                  const detail = modelEntry(l.id)?.detail;
+                  return (
+                    <KeyItem
+                      key={l.id}
+                      stroke={waveHue(l.id).stroke}
+                      dashed={DASHED.has(l.id)}
+                      figure={own ? heights.figure(own.height_m) : ""}
+                      data-model-key={l.id}
+                    >
+                      {waveModelName(l.id)}
+                      {detail && (
+                        <span className="text-ink-muted"> · {detail}</span>
+                      )}
+                    </KeyItem>
+                  );
+                })}
+                {waves.blended && (
+                  <KeyItem
+                    mark="blend"
+                    figure={
+                      waveAt?.blendM != null
+                        ? heights.figure(waveAt.blendM)
+                        : ""
+                    }
+                    data-model-key="blend"
+                  >
+                    Blend
+                  </KeyItem>
+                )}
+              </KeyGroup>
+            )}
             {PART_ROWS.some(([key]) => waveStack.at[key]) && (
               <KeyGroup name="Swell">
                 <KeyItem mark="swell">
@@ -3988,12 +4276,16 @@ function BandNames({
   height: number;
   /** Put away to the left, on a phone, while the hours are moved on. */
   folded: boolean;
-  /** Each band's name, its middle, its span, and what its figures are in. */
+  /**
+   * Each band's name, its middle, its span, what its figures are in, and
+   * how far open it is (1, open, if not said).
+   */
   bands: (readonly [
     string,
     number,
     readonly [number, number],
     (string | null)?,
+    number?,
   ])[];
 }) {
   const s = styles();
@@ -4003,19 +4295,25 @@ function BandNames({
         className={s.glSlide({ className: folded && "-translate-x-full" })}
         data-band-names={folded ? "folded" : "shown"}
       >
-        {bands.map(([name, middle, [y, h], unit]) => (
+        {bands.map(([name, middle, [y, h], unit, open = 1]) => (
+          // Cut to the band's open share as it opens or folds, and fading.
           <div
-            key={`${name}${y}`}
-            className={s.glBand()}
+            key={name}
+            className={s.glBand({
+              className: open < 1 ? "overflow-hidden" : undefined,
+            })}
             style={{
-              top: middle - 8,
-              height: Math.max(16, y + h - (middle - 8)),
+              top: y,
+              height: open < 1 ? h * open : h,
+              opacity: open < 1 ? open : undefined,
             }}
           >
-            <span className={s.glName()} data-band-name={name}>
-              {name}
-            </span>
-            {unit && <span className={s.glUnit()}>{unit}</span>}
+            <div style={{ paddingTop: middle - 8 - y }}>
+              <span className={s.glName()} data-band-name={name}>
+                {name}
+              </span>
+              {unit && <span className={s.glUnit()}>{unit}</span>}
+            </div>
           </div>
         ))}
       </div>
@@ -4346,6 +4644,7 @@ function LowerBands({
   rain,
   units,
   whole,
+  cut,
 }: {
   rows: readonly SpotRow[];
   /** Whether a row is drawn: not with the night left out and it after dark. */
@@ -4366,6 +4665,8 @@ function LowerBands({
   units: Units;
   /** Whether figures `half` either side of `x` escape being cut by the window. */
   whole: (x: number, half: number) => boolean;
+  /** A band's clip and fade while it is part open (`Graph`'s `part`). */
+  cut: (band: WindBand) => React.SVGProps<SVGGElement>;
 }) {
   const speed = useSpeed();
   const mid = (r: Pick<SpotRow, "time" | "step">) =>
@@ -4401,7 +4702,7 @@ function LowerBands({
           const [y, h] = lower.rain;
           const bar = h - 14;
           return (
-            <g data-band="rain">
+            <g data-band="rain" {...cut("rain")}>
               <line
                 x1={0}
                 x2={W}
@@ -4503,7 +4804,11 @@ function LowerBands({
             MY(blend.get(blended[i].time)!.kn),
           );
           return (
-            <g data-band="wind-blend" data-scale={`${lo}-${hi}`}>
+            <g
+              data-band="wind-blend"
+              data-scale={`${lo}-${hi}`}
+              {...cut("blend")}
+            >
               {Array.from(
                 { length: (hi - lo) / 10 + 1 },
                 (_, i) => lo + i * 10,
@@ -4589,7 +4894,7 @@ function LowerBands({
           );
         })()}
       {lower.current && current.columns.length > 0 && (
-        <g data-band="current">
+        <g data-band="current" {...cut("current")}>
           {rows.map((r, i) => {
             const reading = current.columns[i];
             if (!reading || !third(r) || !whole(mid(r), 14)) return null;
@@ -4659,6 +4964,7 @@ function WaveBands({
   whole,
   halo,
   pointed,
+  cut,
 }: {
   rows: readonly SpotRow[];
   waves: WaveWeek;
@@ -4677,6 +4983,8 @@ function WaveBands({
   halo: (t: number) => string;
   /** The row under the pointer: over a swell, the other swells fade. */
   pointed: string | null;
+  /** A band's clip and fade while it is part open (`Graph`'s `part`). */
+  cut: (band: WaveBand) => React.SVGProps<SVGGElement>;
 }) {
   const heights = useHeights();
   const feet = heights.unit === "ft";
@@ -4830,7 +5138,7 @@ function WaveBands({
         (() => {
           const [y] = bands.wdir;
           return (
-            <g data-band="wave-direction">
+            <g data-band="wave-direction" {...cut("wdir")}>
               {at
                 .filter((p) => third(p.row) && !p.held && whole(mid(p.row), 14))
                 .map(({ row, w }, i) => (
@@ -4867,7 +5175,7 @@ function WaveBands({
           const [y] = bands.wstars;
           // Only where there are stars, as the wind's pips.
           return (
-            <g data-band="wstars">
+            <g data-band="wstars" {...cut("wstars")}>
               {rows.map((r, i) => {
                 const n = rated[i]?.stars ?? 0;
                 return n && seen(r) ? (
@@ -4889,7 +5197,7 @@ function WaveBands({
         (() => {
           const [y, h] = bands.period;
           return (
-            <g data-band="period">
+            <g data-band="period" {...cut("period")}>
               {at
                 .filter(
                   (p) =>
@@ -4922,7 +5230,7 @@ function WaveBands({
             .filter((p) => p.w.blendM !== null)
             .map((p) => ({ ...p, held: p.w.blendHeld }));
           return (
-            <g data-band="wave-blend">
+            <g data-band="wave-blend" {...cut("wblend")}>
               {scale(
                 y,
                 h,
@@ -5021,60 +5329,61 @@ function WaveBands({
           run.map((p) => [mid(p.row), PY(p.part.heightM!)] as const),
         );
         return (
-          <g
-            key={key}
-            data-band={key}
-            opacity={
-              pointed && pointed in WAVE_PART && pointed !== key
-                ? 0.4
-                : undefined
-            }
-          >
-            {lines.map((pts, i) => (
-              <path
-                key={i}
-                d={`${smoothPath(pts)}L${pts.at(-1)![0]},${y + h}L${pts[0][0]},${y + h}Z`}
-                className="fill-sea-1"
-                fillOpacity={0.55}
-              />
-            ))}
-            <path
-              d={lines.map(smoothPath).join("")}
-              className="fill-none stroke-depth"
-              strokeWidth={1.2}
-            />
-            {parts
-              .filter(
-                (p) => sixth(p.row) && !p.held && whole(mid(p.row) + 10, 28),
-              )
-              .map(({ row, part }, i) => (
-                <g key={i}>
-                  {part.from !== null && (
-                    <g
-                      transform={`translate(${mid(row) - 17},${y + 8}) rotate(${part.from + 180}) scale(0.85)`}
-                    >
-                      <path
-                        d={ARROW}
-                        className="fill-none stroke-depth"
-                        strokeWidth={1.8}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </g>
-                  )}
-                  <text
-                    x={mid(row) - 6}
-                    y={y + 12}
-                    className={`fill-ink-2 ${caption} ${halo(row.time)}`}
-                    data-part={key}
-                  >
-                    <tspan className="fill-ink font-semibold">
-                      {heights.figure(part.heightM!)}
-                    </tspan>
-                    {part.periodS !== null && ` ${Math.round(part.periodS)}s`}
-                  </text>
-                </g>
+          <g key={key} {...cut(key)}>
+            <g
+              data-band={key}
+              opacity={
+                pointed && pointed in WAVE_PART && pointed !== key
+                  ? 0.4
+                  : undefined
+              }
+            >
+              {lines.map((pts, i) => (
+                <path
+                  key={i}
+                  d={`${smoothPath(pts)}L${pts.at(-1)![0]},${y + h}L${pts[0][0]},${y + h}Z`}
+                  className="fill-sea-1"
+                  fillOpacity={0.55}
+                />
               ))}
+              <path
+                d={lines.map(smoothPath).join("")}
+                className="fill-none stroke-depth"
+                strokeWidth={1.2}
+              />
+              {parts
+                .filter(
+                  (p) => sixth(p.row) && !p.held && whole(mid(p.row) + 10, 28),
+                )
+                .map(({ row, part }, i) => (
+                  <g key={i}>
+                    {part.from !== null && (
+                      <g
+                        transform={`translate(${mid(row) - 17},${y + 8}) rotate(${part.from + 180}) scale(0.85)`}
+                      >
+                        <path
+                          d={ARROW}
+                          className="fill-none stroke-depth"
+                          strokeWidth={1.8}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </g>
+                    )}
+                    <text
+                      x={mid(row) - 6}
+                      y={y + 12}
+                      className={`fill-ink-2 ${caption} ${halo(row.time)}`}
+                      data-part={key}
+                    >
+                      <tspan className="fill-ink font-semibold">
+                        {heights.figure(part.heightM!)}
+                      </tspan>
+                      {part.periodS !== null && ` ${Math.round(part.periodS)}s`}
+                    </text>
+                  </g>
+                ))}
+            </g>
           </g>
         );
       })}
@@ -5127,6 +5436,7 @@ function HourTable({
   rated,
   rain,
   switcher,
+  tools,
 }: {
   forecast: SpotForecast;
   rows: SpotRow[];
@@ -5140,6 +5450,12 @@ function HourTable({
   rain: ReadonlyMap<number, number>;
   /** The Graph | Table switch, over the table as it is beside Wind's title. */
   switcher: React.ReactNode;
+  /**
+   * The model tabs (a phone's Model & rows button), over the table: the
+   * model moves its wind and stars. The rows' switches are the graphs'; the
+   * table always gives every column.
+   */
+  tools?: React.ReactNode;
 }) {
   const speed = useSpeed();
   const heights = useHeights();
@@ -5147,7 +5463,10 @@ function HourTable({
   const light = rows.filter((r) => r.hour.daylight);
   return (
     <div className="mt-3 grid gap-2">
-      <div className="flex justify-end">{switcher}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">{tools}</div>
+        {switcher}
+      </div>
       <div className="overflow-x-auto">
         <table className={s.table()} data-hour-table>
           <thead>

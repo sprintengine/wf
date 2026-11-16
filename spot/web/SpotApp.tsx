@@ -87,7 +87,7 @@ export default function SpotApp() {
 
 /**
  * Who the stars are for, kept on the device (force5.prefs.v1) and changed
- * from the rider line or an hour's card. Held above the page because the
+ * from the model tabs over the Wind graph. Held above the page because the
  * forecast itself is read for it: the stars come from the model it names.
  */
 function useRider() {
@@ -326,6 +326,7 @@ function SpotPage({
   forecast,
   point,
   rider,
+  onRider,
 }: {
   spot: RidingSpot;
   forecast: SpotForecast;
@@ -362,6 +363,7 @@ function SpotPage({
       blendModels={blendModels}
       waveModel={waveModel}
       point={point}
+      onRider={onRider}
       actions={point ? null : <KeepButton id={spot.id} name={spot.name} />}
       notices={
         hasNotices(forecast.warnings, forecast.water_quality) && (

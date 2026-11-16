@@ -1,4 +1,5 @@
 import {
+  allSpotRows,
   expect,
   openFromMenu,
   saveSettings,
@@ -14,6 +15,10 @@ import { MODELS, withWaves } from "./waveFixtures";
 
 const heading = (page: Page) =>
   page.getByRole("heading", { level: 1, name: "Brandon Bay", exact: true });
+
+// Every row on, the wave models and the swells among them (they start off):
+// these specs are about what the rows draw.
+test.beforeEach(({ page }) => allSpotRows(page));
 
 test("the week is a Wind section and a Waves section, on one clock", async ({
   page,
@@ -344,6 +349,8 @@ test("a rider's ECMWF leads to its end: no flipping between its steps, and a val
       JSON.stringify({ version: 3, waveModel: "ecmwf-wave" }),
     ),
   );
+  // Over the prefs just written: the rows on again.
+  await allSpotRows(page);
   await withWaves(page);
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });

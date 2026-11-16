@@ -57,8 +57,9 @@ The choice rides on the rider (`Rider.starsFrom`, a `StarsChoice` of one
 `model` in `force5.prefs.v1`; the field keeps its old name so stored riders
 still read), so every page and service that is handed the rider rates from it.
 It is set in Settings ("Model", in its Forecast part), the map's
-Layers ("Model, for the map and the stars"), the spot page's rider line and its
-hour card's model table, and the app's Settings → Model; all of them set the
+Layers ("Model, for the map and the stars"), the model tabs over the spot
+page's Wind graph (in a phone's Model & rows sheet), the stars page's rider
+line, and the app's Settings → Model; all of them set the
 same choice, and the map moves to it. The map opens on it (`storedMapModel` in
 `force5/src/boot.ts`), so a rider on HARMONIE downloads nothing new. A choice
 saved before 23 October keeps its model; what it said for after the run's end

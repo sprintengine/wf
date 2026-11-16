@@ -280,6 +280,9 @@ export const css = {
   "color-glow-weather": "#e9b200",
   "color-glow-weather-edge": "#8f6b00",
   "color-glow-weather-ink": "#8f6b00",
+  "color-glow-tide": "#3f9fd0",
+  "color-glow-tide-edge": "#1f74a3",
+  "color-glow-tide-ink": "#1f74a3",
   "color-legend-shallow": "#3f9fd0",
 } as const;
 

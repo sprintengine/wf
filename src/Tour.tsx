@@ -158,7 +158,7 @@ const STEPS: Step[] = [
   {
     id: "field",
     title: "The map’s colours",
-    body: "Wind colours the map by the wind’s speed, and Weather shows the rain. One at a time: tap it again for the plain map, where the shallow water round the coast glows blue.",
+    body: "Wind colours the map by the wind’s speed, Weather shows the sky and the rain, and Tide shows how deep the shallow water round the coast is at the hour you picked. One at a time: tap the one that is on again for a plain map.",
     target: () => pad(box(document.querySelector(TARGETS.field)), 4),
   },
   {

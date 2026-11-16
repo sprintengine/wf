@@ -91,9 +91,9 @@ async function open(page: Page, ranges: boolean) {
         headers: { "content-type": "application/octet-stream" },
       });
     });
-  // No field on the map: the tidal depth is drawn.
+  // Tide on the map: the tidal depth is drawn.
   await page.addInitScript(
-    (key) => localStorage.setItem(key, "none"),
+    (key) => localStorage.setItem(key, "tide"),
     FIELD_KEY,
   );
   // No flights and no drifting arrows: the same chart, photographed twice,

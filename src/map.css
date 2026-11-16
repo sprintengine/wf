@@ -1514,7 +1514,6 @@
 }
 .map-footer .map-dock {
   bottom: calc(100% + 12px);
-  width: min(560px, calc(100% - 28px));
 }
 .md-what {
   display: flex;
@@ -1580,7 +1579,8 @@
   margin: 2px 0 0 6px;
 }
 @media (max-width: 720px) {
-  /* On a phone the dock is the screen's width, its chips sharing it. */
+  /* On a phone the dock is the screen's width, its four chips sharing it,
+     each as wide as its word and the rest shared out, so Weather has room. */
   .map-dock,
   .map-footer .map-dock {
     left: 8px;
@@ -1594,11 +1594,19 @@
     flex: 1;
   }
   .md-chips > * {
-    flex: 1 1 0;
+    flex: 1 1 auto;
     justify-content: center;
+    padding-inline: 8px;
   }
   .md-hours {
     margin-left: 0;
+  }
+}
+/* On the narrowest phones (320 px) the four chips' words alone fit, so their
+   icons go. */
+@media (max-width: 359px) {
+  .md-chips [aria-hidden="true"]:has(> svg) {
+    display: none;
   }
 }
 /* Where the dock over the scrub bar leaves no room at its side, the small
@@ -1858,8 +1866,9 @@
   flex: 1;
 }
 .narrow-foot .md-chips > * {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   justify-content: center;
+  padding-inline: 8px;
 }
 /* The list: where the switch stands at the foot, a solid strip under it that
    the cards scroll under. */

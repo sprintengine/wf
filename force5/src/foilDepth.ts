@@ -73,6 +73,8 @@ export const COAST_GLOW_FADE_FROM = 8.9;
 
 /** Beside the layer's name, while the chart is out past FOIL_MIN_ZOOM: not a fault. */
 export const FOIL_ZOOM_NOTE = "Zoom in for this hour's depths.";
+/** The same in the map's legend, quietly, as its other notes are: no full stop. */
+export const FOIL_ZOOM_LEGEND = "Zoom in for this hour's depths";
 
 /**
  * How far above the floor the deep colour fades in, in metres: the edge of

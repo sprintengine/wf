@@ -1,10 +1,11 @@
 /**
  * What a pill on the finder's map says (./lights.ts), by the field the map
- * shows: the map's one field, none, Wind, Waves or Weather, so that the pills
- * read what the map is coloured by.
+ * shows: the map's one field, none, Wind, Waves, Weather or Tide, so that the
+ * pills read what the map is coloured by.
  *
- * - None: an arrow the way the wind blows, the wind with its unit, and the
- *   sky ("↗ 13 kn" and a cloud).
+ * - None, and Tide (the shallows' depth, which has no figure at a spot): an
+ *   arrow the way the wind blows, the wind with its unit, and the sky
+ *   ("↗ 13 kn" and a cloud).
  * - Wind: the arrow, the wind with its unit, and the gust raised beside it
  *   ("↗ 13kn ¹⁹").
  * - Waves: an arrow the way the sea runs, its height with its unit, feet or
@@ -15,7 +16,7 @@
  *
  * Filled in the spot's stars' own colour, pink to purple as the chart's rings
  * are, where the wind's stars are what the pill speaks for (`tint`): with no
- * field, Wind or Weather. A wave pill is filled in its wave stars' green
+ * field, Wind, Weather or Tide. A wave pill is filled in its wave stars' green
  * instead (./waveStars.ts), pale to deep, one star to five. A pill with no
  * stars of its kind at the hour, or after dark, stays neutral, dark with light
  * words.
@@ -241,8 +242,8 @@ const FINE: Record<WeatherIcon, number> = {
 
 /**
  * The figure a spot's pill is about, as a number to rank spots by where the
- * map has room for a few pills only (./pillBest.ts): the wind with none on
- * or Wind, the wave height with Waves (none inland), and with Weather how
+ * map has room for a few pills only (./pillBest.ts): the wind with none on,
+ * Wind or Tide, the wave height with Waves (none inland), and with Weather how
  * fine the sky is, less the rain. Null where nothing is known.
  */
 export function pillFigure(field: PillField, r: PillReading): number | null {

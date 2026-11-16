@@ -71,7 +71,7 @@ test("in Force the spot page's figures are forces, written F4", async ({
   await inForce(page);
   await page.goto("/spot/brandon");
   // Now's wind, and the week's ranges, in forces; no knots anywhere.
-  const now = page.locator("[data-now]");
+  const now = page.locator("[data-card-wind]");
   await expect(now).toContainText(/F\d/, { timeout: 30000 });
   await expect(page.locator("[data-day-card]").nth(1)).toContainText(
     /F\d+–F\d+/,

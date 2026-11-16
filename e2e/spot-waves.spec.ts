@@ -159,7 +159,7 @@ test("Settings says feet or metres, and every wave height follows", async ({
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
   // Feet for everyone until asked otherwise.
-  const waves = page.locator("[data-now-waves]");
+  const waves = page.locator("[data-card-waves]");
   await expect(waves).toContainText(/( ft|under 1 ft)/);
   const svg = page.locator("[data-wave-svg]");
   await expect(svg).not.toContainText(/\d m/);

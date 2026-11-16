@@ -129,7 +129,7 @@ test("a spot page lists its bathing water notice, which stands in for the stars"
   );
 });
 
-test("with the notice in force, the Your stars card and the week say why there are no stars", async ({
+test("with the notice in force, the Wind card and the week say why there are no stars", async ({
   page,
 }) => {
   // The same notice, from a day earlier: in force at the clock.

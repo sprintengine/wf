@@ -442,7 +442,7 @@ repair.
 
 Each riding place's page (/spot/<id>, `spot/web/report/PhotoLoupe.tsx`, read
 through `spot/web/useSpotPicture.ts`) shows the place from above, at high
-tide or at low tide: `spots.py` cuts one WebP a place and tide from the
+tide or at low tide (a small switch over the picture's corner): `spots.py` cuts one WebP a place and tide from the
 imagery archives, 1200 x 600 at zoom 14.5 (4 m a pixel at 53.5°N, 4.8 km
 across; the archives' own 5.8 m resampled), north up and centred on the
 place, laid on the chart's paper where the archive has no image. It reads

@@ -69,7 +69,12 @@ import {
   type SpotCurrents,
 } from "../../../shared/web/useSpotCurrents";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, X as Cross } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  X as Cross,
+} from "lucide-react";
 import { Button, Disclosure, NoticeMark, Segmented } from "../../../ui";
 import type { NightHours } from "../../../force5/src/prefs";
 import {
@@ -96,7 +101,7 @@ import {
   daySun,
   dayNames,
   dublinDate,
-  nextStarWindow,
+  nextGoodWindow,
   type StarWindow,
   dublinHour,
   dublinMidnight,
@@ -106,6 +111,7 @@ import {
   spotRows,
   tideCurve,
   tideHeightAt,
+  tideTrend,
   tideTurns,
   type DaySun,
   type SpotRow,
@@ -158,33 +164,29 @@ const styles = tv({
     title: "flex items-center justify-between gap-4 pt-2 pb-2",
     name: "m-0 font-display text-big-sm font-semibold text-ink wide:text-big",
     acts: "flex shrink-0 items-center gap-2",
-    // What it is like now: three small cards and the picture, under the days.
-    // On a phone the picture is under the cards, the width of the page; wider,
-    // the cards stand one over another beside it.
-    nowBlock: "mt-2 grid gap-2 rail:gap-3",
-    nowCards: "grid min-w-0 grid-cols-2 gap-2 rail:gap-3",
-    nowCard: [
-      "flex min-w-0 flex-col justify-center gap-0.5 rounded-surface bg-sunken on-card px-3.5 py-2",
-      "cards:flex-row cards:items-end cards:justify-between cards:gap-3 cards:pb-5",
-    ],
-    // On a phone the stars have a row to themselves, the word and what is
-    // next side by side.
-    nowCardStars:
-      "col-span-2 flex-row items-end justify-between gap-3 wide:col-span-1 wide:flex-col wide:items-start wide:justify-center wide:gap-0.5 cards:flex-row cards:items-end cards:justify-between cards:gap-3",
-    nowHead: "grid min-w-0 gap-0.5 cards:min-h-14 cards:content-between",
-    nowLabel:
-      "block truncate font-body text-caption font-medium whitespace-nowrap text-ink-muted wide:text-label",
-    nowFigure:
+    // The hour's cards: the next good window over the four cards (wind,
+    // waves, tide and weather at the chosen hour), and the picture under them
+    // on a phone, beside them wider, its foot level with theirs.
+    hero: "mt-2 grid gap-2 rail:gap-3",
+    heroCards: "grid min-w-0 content-start gap-2 rail:gap-3",
+    // The next good window: a bar the width of the cards, a tap goes to it
+    // (a Button, its look the cards').
+    next: "flex h-auto w-full min-w-0 items-center justify-between gap-3 rounded-surface bg-sunken on-card px-3.5 py-2.5 text-left font-body text-body font-normal text-ink-2",
+    nextTap: "not-disabled:hover:bg-line",
+    nextName: "min-w-0 truncate font-semibold text-ink",
+    nextGo:
+      "flex shrink-0 items-center gap-2 font-semibold whitespace-nowrap text-ink tabular-nums",
+    cards: "grid min-w-0 grid-cols-2 gap-2 rail:gap-3",
+    card: "flex min-w-0 flex-col gap-0.5 rounded-surface bg-sunken on-card px-3.5 pt-2.5 pb-2",
+    cardHead:
+      "flex min-h-4 min-w-0 items-center justify-between gap-2 font-body text-label text-ink-muted",
+    cardName: "min-w-0 truncate",
+    cardFigure:
       "flex min-w-0 items-baseline gap-1.5 font-body text-lead font-semibold whitespace-nowrap text-ink tabular-nums rail:text-big-sm",
-    nowUnit: "text-body font-medium text-ink-2",
-    nowGust: "text-gust-ink",
-    nowLine:
-      "block min-w-0 truncate font-body text-body whitespace-nowrap text-ink-2 tabular-nums cards:shrink-0 cards:text-right cards:text-label",
-    nowWord: "text-lead font-semibold",
-    // The next stars, the time alone a link.
-    nowNext:
-      "flex min-w-0 items-center gap-1.5 font-body text-body whitespace-nowrap text-ink-2 tabular-nums cards:shrink-0 cards:text-label",
-    nowQuiet: "font-normal text-ink-2",
+    cardUnit: "text-body font-medium text-ink-2",
+    cardGust: "text-gust-ink",
+    cardLine:
+      "block min-w-0 truncate font-body text-body whitespace-nowrap text-ink-2 tabular-nums",
     line: "font-body text-prose text-ink-2",
     off: "text-pen",
     notices: "pt-9",
@@ -341,28 +343,21 @@ const styles = tv({
     td: "border-0 border-t border-line px-3 py-2.5 whitespace-nowrap",
     narrow: "hidden wide:table-cell",
     guide: "grid gap-3 wide:grid-cols-2 cards:grid-cols-4",
-    // The picture's card: the satellite picture under the loupe, and under
-    // it the hour, what the rose reads and the tide switch.
-    pictureSide:
-      "flex min-w-0 items-center justify-between gap-3 px-3.5 py-2.5",
-    pictureHour:
-      "block truncate font-body text-label font-medium text-ink-muted",
-    foot: "block min-w-0 truncate font-body text-body font-semibold whitespace-nowrap text-ink tabular-nums",
-    footGust: "text-caption text-gust-ink",
-    seg: "shrink-0",
+    // The tide switch, small, over the picture's corner.
+    tideSwitch: "absolute top-2 left-2 z-1 shadow-float",
     gd: "rounded-surface bg-sunken on-card p-4 wide:px-5",
     gdHead: "m-0 mb-1.5 font-body text-prose font-semibold text-ink",
     gdText: "m-0 font-body text-prose text-ink-2",
     smallPrint: "grid gap-1 pt-8 font-body text-caption text-ink-muted",
   },
   variants: {
-    // With a picture: the cards one over another beside it.
+    // With a picture: the picture beside the cards; without, the cards in a
+    // row across a wide page, sharing it however many there are.
     pictured: {
-      true: {
-        nowBlock: "wide:grid-cols-2 rail:grid-cols-nowblock",
-        nowCards: "wide:auto-rows-fr wide:grid-cols-1",
+      true: { hero: "wide:grid-cols-2" },
+      false: {
+        cards: "rail:grid-flow-col rail:grid-cols-none rail:auto-cols-fr",
       },
-      false: { nowCards: "wide:grid-cols-3" },
     },
   },
 });
@@ -704,7 +699,25 @@ export function SpotReport({
   const seaShown =
     sheltered === false && waves.rows.some((r) => r !== null) ? waves : null;
 
-  const nextStars = useMemo(() => nextStarWindow(rows, now), [rows, now]);
+  // The wave stars at each row, by day (force5/src/waveStars.ts): the Waves
+  // section's row and the Waves card.
+  const waveRated = useMemo(
+    () =>
+      rows.map((r, i) => {
+        const w = seaShown?.rows[i];
+        return w && w.heightM !== null && r.hour.daylight
+          ? waveStars({
+              height: w.heightM,
+              period: w.periodS,
+              direction: w.from,
+              windFrom: r.hour.wind?.direction_deg ?? null,
+              facing,
+            })
+          : null;
+      }),
+    [rows, seaShown, facing],
+  );
+  const goodWindow = useMemo(() => nextGoodWindow(rows, now), [rows, now]);
   const nowRow = rowAt(rows, now);
   const shown = focus === null ? nowRow : rowAt(rows, focus);
   // The day the strip marks: the day of the hour read out in the graph, the
@@ -792,28 +805,9 @@ export function SpotReport({
       ]}
     />
   );
-  // Waves now, as the Waves section reads them, or null where it has none.
-  const nowIndex = nowRow ? rows.indexOf(nowRow) : -1;
-  const nowWaveRow = seaShown && nowIndex >= 0 ? seaShown.rows[nowIndex] : null;
-  /** The next hours with stars, in the week: the Stars cell's jump. */
-  const showNextStars = (time: number) => {
-    const date = dublinDate(time);
-    const day = days.findIndex((d) => d.day.date === date);
-    if (day >= 0) {
-      setDayAt(day);
-      setScrollTo({ day, at: Date.now(), time });
-    }
-    setFocus(time);
-    setFollow(null);
-    setView("graph");
-    // The Wind graph, under the pinned days (the page's scroll padding), once
-    // it is drawn.
-    requestAnimationFrame(() =>
-      document
-        .querySelector('[data-week-section="wind"]')
-        ?.scrollIntoView({ behavior: "smooth" }),
-    );
-  };
+  // The row the cards read: the chosen hour's, or now's.
+  const heroRow = shown ?? nowRow;
+  const heroIndex = heroRow ? rows.indexOf(heroRow) : -1;
   // A day pressed in the strip, or today: the week lets go of a held hour.
   const [backToNow, setBackToNow] = useState(0);
   // A day pressed: the whole page goes to it, at the hour the rider has picked
@@ -880,9 +874,6 @@ export function SpotReport({
     { ...loupeWind, daylight: !!shown?.hour.daylight },
     facing,
   );
-  const loupeShore = loupeMeasured
-    ? measuredShore(loupeMeasured, facing)
-    : shown?.shore;
   const heights = turns.map((t) => t.height);
   const tideHere = tideAt(heroAt);
   const tideShown: PictureTide =
@@ -947,19 +938,27 @@ export function SpotReport({
                 onNow={pickNow}
               />
             </div>
-            <div className={s.nowBlock({ pictured: !!picture })} data-now-block>
-              <div className={s.nowCards({ pictured: !!picture })}>
-                <NowCards
-                  row={nowRow}
-                  waves={seaShown && nowWaveRow}
+            <div className={s.hero({ pictured: !!picture })} data-hero>
+              <div className={s.heroCards()}>
+                {!point && (
+                  <NextWindow window={goodWindow} now={now} onPick={pickHour} />
+                )}
+                <HourCards
+                  pictured={!!picture}
+                  row={heroRow}
+                  at={heroAt}
+                  waves={
+                    seaShown && heroIndex >= 0 ? seaShown.rows[heroIndex] : null
+                  }
+                  waveRating={heroIndex >= 0 ? waveRated[heroIndex] : null}
                   hasWaves={seaShown !== null}
                   sea={forecast.sea_temperature}
                   now={now}
                   rated={!point}
                   facing={facing}
-                  measured={nowMeasured}
-                  next={nextStars}
-                  onShowNext={showNextStars}
+                  measured={heroAtNow ? nowMeasured : null}
+                  turns={turns}
+                  rain={rain}
                   forecast={forecast}
                 />
               </div>
@@ -970,49 +969,19 @@ export function SpotReport({
                   loupe={loupe}
                   faint={loupeFaint}
                   scale={scale}
+                  measured={loupeMeasured?.paired.station.id}
                 >
-                  <div className={s.pictureSide()}>
-                    <div
-                      className={s.foot()}
-                      data-loupe-foot
-                      data-measured={loupeMeasured?.paired.station.id}
-                    >
-                      <span className={s.pictureHour()}>
-                        {heroAtNow
-                          ? "Now"
-                          : `${dayNames(dublinDate(heroAt), heroAt).short} ${clock(heroAt)}`}
-                      </span>{" "}
-                      {loupe ? (
-                        <>
-                          {loupe.reading.replace(/ g(\d+)$/, "")}{" "}
-                          {/ g\d+$/.test(loupe.reading) && (
-                            <span className={s.footGust()}>
-                              g{loupe.reading.match(/ g(\d+)$/)![1]}
-                            </span>
-                          )}
-                          {heroAtNow && shoreWord(loupeShore) && (
-                            <span className="font-normal text-ink-2">
-                              {" · "}
-                              {shoreWord(loupeShore)}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        "No wind reading"
-                      )}
-                    </div>
-                    <Segmented
-                      aria-label="Tide in the picture"
-                      size="sm"
-                      className={s.seg()}
-                      value={tide}
-                      onChange={(t) => setTide(t)}
-                      options={[
-                        { value: "high", label: "High tide" },
-                        { value: "low", label: "Low tide" },
-                      ]}
-                    />
-                  </div>
+                  <Segmented
+                    aria-label="Tide in the picture"
+                    size="sm"
+                    className={s.tideSwitch()}
+                    value={tide}
+                    onChange={(t) => setTide(t)}
+                    options={[
+                      { value: "high", label: "High tide" },
+                      { value: "low", label: "Low tide" },
+                    ]}
+                  />
                 </PhotoLoupe>
               )}
             </div>
@@ -1036,8 +1005,8 @@ export function SpotReport({
                 models={models}
                 blend={blend}
                 waves={seaShown}
+                waveRated={waveRated}
                 waveModel={waveModel}
-                facing={facing}
                 current={current}
                 rain={rain}
                 measured={paired}
@@ -1281,22 +1250,116 @@ function NearbyStrip({
  * stars to show, the Stars card says when the next ones are, and takes you
  * there.
  */
-function NowCards({
+/**
+ * An hour's stars on a card: five pips in a row, as many lit as it has, in
+ * the stars' pink or the wave stars' green, as the graph counts them.
+ */
+function PipRow({ n, waves = false }: { n: number; waves?: boolean }) {
+  const lit = waves ? "fill-wave-stars-4" : "fill-stars-4";
+  return (
+    <svg
+      width={34}
+      height={11}
+      viewBox="0 0 34 11"
+      role="img"
+      aria-label={`${n} of 5 ${waves ? "wave stars" : "stars"}`}
+      className="shrink-0"
+      data-stars={waves ? undefined : n}
+      data-wave-stars={waves ? n : undefined}
+    >
+      {[0, 1, 2, 3, 4].map((k) => (
+        <rect
+          key={k}
+          x={k * 7}
+          y={0}
+          width={5}
+          height={11}
+          rx={1}
+          className={k < n ? lit : "fill-line"}
+        />
+      ))}
+    </svg>
+  );
+}
+
+/**
+ * The next good window (`nextGoodWindow`): its best stars and its hours, a
+ * tap taking the page's hour to its best; with none ahead, the next stars at
+ * all, and with none of those, that there are none.
+ */
+function NextWindow({
+  window: w,
+  now,
+  onPick,
+}: {
+  window: StarWindow | null;
+  now: number;
+  onPick: (time: number) => void;
+}) {
+  const s = styles();
+  const end = w ? clock(w.to) : "";
+  const name = (
+    <span className={s.nextName()}>
+      {!w || w.good ? "Next good window" : "Next stars"}
+    </span>
+  );
+  if (!w)
+    return (
+      <div className={s.next()} data-next-window>
+        {name}
+        <span>None in the forecast</span>
+      </div>
+    );
+  return (
+    <Button
+      variant="quiet"
+      className={s.next({ className: s.nextTap() })}
+      onClick={() => onPick(w.best)}
+      data-next-window
+    >
+      {name}
+      <span className={s.nextGo()}>
+        <PipRow n={w.stars} />
+        {dayNames(dublinDate(w.from), now).short} {clock(w.from)}–
+        {end === "00:00" ? "24:00" : end}
+        <ArrowRight size={15} aria-hidden="true" />
+      </span>
+    </Button>
+  );
+}
+
+/**
+ * The chosen hour (now, where none is chosen) in four small cards: the wind,
+ * with its stars; the waves, with theirs, and the water's temperature; the
+ * tide; and the weather. At now the wind is the paired station's reading,
+ * where it has a fresh one.
+ */
+function HourCards({
+  pictured,
   row,
+  at,
   waves,
+  waveRating,
   hasWaves,
   sea,
   now,
   rated,
   facing,
   measured,
-  next,
-  onShowNext,
+  turns,
+  rain,
   forecast,
 }: {
+  /** Beside the picture: two by two, else four across on a wide screen. */
+  pictured: boolean;
+  /** The chosen hour's row, or null where the week has none. */
   row: SpotRow | null;
-  /** The waves now, as the Waves section has them, or null with none. */
+  /** The moment the cards read: the hour chosen, or now itself. */
+  at: number;
+  /** The waves at the hour, as the Waves section has them, or null. */
   waves: WaveRow | null;
+  /** The hour's wave stars, or null where it is not rated. */
+  waveRating: WaveRating | null;
   /** Whether the place has waves at all (water the open sea reaches). */
   hasWaves: boolean;
   sea: SpotSea | null;
@@ -1306,17 +1369,19 @@ function NowCards({
   /** The way the shore faces, or null where it has none. */
   facing: number | null;
   /**
-   * The paired station's latest reading, fresh (`measuredNow`), or null: the
-   * card says it, and where it is from, in place of the forecast's.
+   * The paired station's latest reading, fresh (`measuredNow`), at now
+   * only, or null: the card says it, and where it is from, in place of the
+   * forecast's.
    */
   measured: MeasuredReading | null;
-  next: StarWindow | null;
-  onShowNext: (time: number) => void;
+  turns: ReturnType<typeof tideTurns>;
+  /** The rain in each hour, mm/h, by the hour's time (`rainPerHour`). */
+  rain: ReadonlyMap<number, number>;
   forecast: SpotForecast;
 }) {
   const speed = useSpeed();
   const heights = useHeights();
-  const s = styles();
+  const s = styles({ pictured });
   const wind = measured
     ? {
         kn: measured.reading.windKn,
@@ -1336,146 +1401,206 @@ function NowCards({
   const watered = (row?.water?.ids ?? [])
     .map((id) => forecast.water_quality.items.find((item) => item.id === id))
     .find((item) => item?.replaces_ratings);
-  const stars = row?.rating?.stars ?? 0;
-  const wing = row?.rating
-    ? `${row.rating.wing.own ?? row.rating.wing.recommended} m² wing`
-    : null;
-  // No stars this hour: why, and when the next ones are (the time alone a
-  // link), or that none are coming.
-  const nextLine =
-    !stars && !taken ? (
-      next ? (
-        <span className={s.nowNext()}>
-          <span className={s.nowQuiet()}>Next</span>
-          <Stars n={next.stars} size={13} />
-          <Button
-            variant="link"
-            size="sm"
-            className="max-w-full"
-            onClick={() => onShowNext(next.from)}
-            data-next-stars
-          >
-            {dayNames(dublinDate(next.from), now).short} {clock(next.from)}
-          </Button>
-        </span>
-      ) : (
-        <span className={s.nowLine()} data-next-stars>
-          None ahead
-        </span>
-      )
-    ) : stars > 0 && wing ? (
-      <span className={s.nowLine()}>{wing}</span>
-    ) : null;
+  // The wind's stars, or what stands in their place: a warning or a notice
+  // that keeps riders off the water, or the dark.
+  const stars = !rated ? null : taken ? (
+    <NoticeMark level={taken.level} className="min-w-0">
+      <span className="truncate">
+        {taken.level === "water" && watered
+          ? restrictionShort(watered)
+          : taken.word}
+      </span>
+    </NoticeMark>
+  ) : row && !row.hour.daylight ? (
+    <span>Dark</span>
+  ) : (
+    <PipRow n={row?.rating?.stars ?? 0} />
+  );
+  const tide = turns.length ? tideHeightAt(turns, at) : null;
+  const trend = tide === null ? null : tideTrend(turns, at);
+  const turn = tide === null ? null : turns.find((t) => t.time > at);
+  const weather = row?.hour.weather ?? null;
+  const wet = row ? rowRain(rain, row) : null;
+  const seaWords = sea && (
+    <span
+      data-sea-temperature
+      title={`Measured ${observationAge((now - Date.parse(sea.time)) / 3600000)} at the ${sea.station} ${NETWORK_LABEL[sea.network as SeaTemperatureNetwork] ?? "station"}, ${sea.distance_km < 10 ? sea.distance_km.toFixed(1) : Math.round(sea.distance_km)} km from here`}
+    >
+      water {sea.celsius.toFixed(1)} °C
+    </span>
+  );
   return (
-    <>
-      {rated && (
-        <div
-          className={s.nowCard({ className: s.nowCardStars() })}
-          data-your-stars
-        >
-          <div className={s.nowHead()}>
-            <span className={s.nowLabel()}>Stars now</span>
-            <div className={s.nowFigure()}>
-              {stars > 0 ? (
-                <Stars n={stars} size={20} />
-              ) : taken ? (
-                <NoticeMark
-                  level={taken.level}
-                  className={s.nowWord({ className: "min-w-0" })}
-                >
-                  <span className="truncate">
-                    {taken.level === "water" && watered
-                      ? restrictionShort(watered)
-                      : taken.word}
-                  </span>
-                </NoticeMark>
-              ) : (
-                <span className={s.nowWord()}>
-                  {row && !row.hour.daylight ? "Dark" : "No stars"}
-                </span>
-              )}
-            </div>
-          </div>
-          {nextLine}
-        </div>
-      )}
-      <div className={s.nowCard()} data-now>
-        <div className={s.nowHead()}>
-          <span className={s.nowLabel()} data-now-wind-label>
-            Wind now
+    <div className={s.cards()} data-hour-cards>
+      <div className={s.card()} data-card-wind>
+        <div className={s.cardHead()}>
+          <span className={s.cardName()} data-wind-label>
+            Wind
             {measured && (
-              <span className={s.roSource()} data-now-source>
+              <span className={s.roSource()} data-wind-source>
                 {" "}
                 · {pairedName(measured.paired)},{" "}
                 {measuredAt(measured.reading.time)}
               </span>
             )}
           </span>
-          <div
-            className={s.nowFigure()}
-            data-now-wind
-            data-measured={measured ? measured.paired.station.id : undefined}
-          >
-            {wind ? (
-              <>
-                {speed.say(wind.kn)}
-                {gust !== null && (
-                  <span className={s.nowGust()}>g{speed.say(gust)}</span>
-                )}
-                {speed.unit && (
-                  <span className={s.nowUnit()}>{speed.unit}</span>
-                )}
-              </>
-            ) : (
-              "–"
-            )}
-          </div>
+          {stars && <span data-your-stars>{stars}</span>}
         </div>
-        {wind && (
-          <span
-            className={s.nowLine({
-              className: isOff(shore) ? s.off() : undefined,
-            })}
-            data-now-direction
-          >
-            {wind.from !== null && compass(wind.from)}
-            {wind.from !== null && shoreWord(shore) && " · "}
-            {shoreWord(shore)}
-          </span>
-        )}
+        <div
+          className={s.cardFigure()}
+          data-card-figure="wind"
+          data-measured={measured ? measured.paired.station.id : undefined}
+        >
+          {wind ? (
+            <>
+              {/* Spaced in the words a screen reader reads, not on screen:
+                  the flex gap spaces them there. */}
+              {speed.say(wind.kn)}{" "}
+              {gust !== null && (
+                <span className={s.cardGust()}>g{speed.say(gust)} </span>
+              )}
+              {speed.unit && <span className={s.cardUnit()}>{speed.unit}</span>}
+              {wind.from !== null && (
+                <svg
+                  width={16}
+                  height={16}
+                  viewBox="-8 -8 16 16"
+                  aria-hidden="true"
+                  className="shrink-0 self-center"
+                >
+                  <path
+                    d={ARROW}
+                    transform={`rotate(${wind.from + 180})`}
+                    className={
+                      isOff(shore)
+                        ? "fill-none stroke-pen"
+                        : "fill-none stroke-ink"
+                    }
+                    strokeWidth={1.8}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </>
+          ) : (
+            "–"
+          )}
+        </div>
+        <span
+          className={s.cardLine({
+            className: isOff(shore) ? s.off() : undefined,
+          })}
+          data-card-line="wind"
+        >
+          {wind?.from != null && compass(wind.from)}
+          {wind?.from != null && shoreWord(shore) && " · "}
+          {wind && shoreWord(shore)}
+          {!wind && "No wind reading"}
+        </span>
       </div>
       {(hasWaves || sea) && (
-        <div className={s.nowCard()} data-now-waves>
-          <div className={s.nowHead()}>
-            <span className={s.nowLabel()}>
-              {hasWaves ? "Waves now" : "Water now"}
-            </span>
-            <div className={s.nowFigure()}>
-              {hasWaves
-                ? waves?.heightM == null
-                  ? "–"
-                  : heights.text(waves.heightM)
-                : sea && `${sea.celsius.toFixed(1)} °C`}
-            </div>
+        <div className={s.card()} data-card-waves>
+          <div className={s.cardHead()}>
+            <span className={s.cardName()}>{hasWaves ? "Waves" : "Water"}</span>
+            {hasWaves && rated && waves?.heightM != null && (
+              <PipRow n={waveRating?.stars ?? 0} waves />
+            )}
           </div>
-          {hasWaves && (
-            <span className={s.nowLine()}>
-              {waves?.periodS != null && `${Math.round(waves.periodS)} s`}
-              {waves?.from != null && ` ${compass(waves.from)}`}
-              {sea && (
-                <span
-                  data-sea-temperature
-                  title={`Measured ${observationAge((now - Date.parse(sea.time)) / 3600000)} at the ${sea.station} ${NETWORK_LABEL[sea.network as SeaTemperatureNetwork] ?? "station"}, ${sea.distance_km < 10 ? sea.distance_km.toFixed(1) : Math.round(sea.distance_km)} km from here`}
-                >
-                  {waves?.periodS != null || waves?.from != null ? " · " : ""}
-                  water {sea.celsius.toFixed(1)} °C
+          <div className={s.cardFigure()} data-card-figure="waves">
+            {hasWaves ? (
+              waves?.heightM == null ? (
+                "–"
+              ) : (
+                <>
+                  {heights.figure(waves.heightM)}{" "}
+                  <span className={s.cardUnit()}>
+                    {heights.unit}
+                    {waves.periodS != null &&
+                      ` · ${Math.round(waves.periodS)} s`}
+                  </span>
+                </>
+              )
+            ) : (
+              sea && (
+                <>
+                  {sea.celsius.toFixed(1)}{" "}
+                  <span className={s.cardUnit()}>°C</span>
+                </>
+              )
+            )}
+          </div>
+          <span className={s.cardLine()} data-card-line="waves">
+            {hasWaves ? (
+              <>
+                {waves?.from != null && compass(waves.from)}
+                {waves?.from != null && sea && " · "}
+                {seaWords}
+                {waves?.from == null && !sea && "No wave reading"}
+              </>
+            ) : (
+              seaWords
+            )}
+          </span>
+        </div>
+      )}
+      {turns.length > 0 && (
+        <div className={s.card()} data-card-tide>
+          <div className={s.cardHead()}>
+            <span className={s.cardName()}>Tide</span>
+          </div>
+          <div className={s.cardFigure()} data-card-figure="tide">
+            {tide === null ? (
+              "–"
+            ) : (
+              <>
+                {tide.toFixed(1)}{" "}
+                <span className={s.cardUnit()}>
+                  m{trend && ` ${trend === "rising" ? "↑" : "↓"} ${trend}`}
                 </span>
-              )}
+              </>
+            )}
+          </div>
+          <span className={s.cardLine()} data-card-line="tide">
+            {turn
+              ? `${turn.tide} at ${clock(turn.time)}${dublinDate(turn.time) === dublinDate(at) ? "" : ` ${dayNames(dublinDate(turn.time), now).short}`}`
+              : "No tide reading"}
+          </span>
+        </div>
+      )}
+      <div className={s.card()} data-card-weather>
+        <div className={s.cardHead()}>
+          <span className={s.cardName()}>Weather</span>
+        </div>
+        <div className={s.cardFigure()} data-card-figure="weather">
+          {weather?.air_c == null ? "–" : `${Math.round(weather.air_c)}°`}
+          {weather && (
+            <span className="self-center">
+              <SkyGlyph
+                weather={weather}
+                size={20}
+                dark={!row?.hour.daylight}
+              />
             </span>
           )}
         </div>
-      )}
-    </>
+        <span className={s.cardLine()} data-card-line="weather">
+          {weather
+            ? [
+                weather.feels_like_c == null
+                  ? null
+                  : `feels ${Math.round(weather.feels_like_c)}°`,
+                wet === null
+                  ? null
+                  : wet < DRY_MM_PER_HOUR
+                    ? "dry"
+                    : `${wet < 0.1 ? "<0.1" : wet.toFixed(1)} mm/h`,
+              ]
+                .filter(Boolean)
+                .join(" · ") || weather.description
+            : "No weather reading"}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -1818,8 +1943,8 @@ function Graph({
   models,
   blend,
   waves,
+  waveRated,
   waveModel,
-  facing,
   current,
   rain,
   measured = null,
@@ -1863,10 +1988,10 @@ function Graph({
    * wave model at all.
    */
   waves: WaveWeek | null;
+  /** Each row's wave stars (`useWaveStars`), or null where it is not rated. */
+  waveRated: readonly (WaveRating | null)[];
   /** The rider's wave model, or null for the finest at each hour. */
   waveModel: string | null;
-  /** The beach's seaward bearing, for the wave stars, or null. */
-  facing: number | null;
   current: SpotCurrents;
   /** The rain in each hour, mm/h, by the hour's time (`rainPerHour`). */
   rain: ReadonlyMap<number, number>;
@@ -1889,23 +2014,6 @@ function Graph({
 }) {
   const speed = useSpeed();
   const heights = useHeights();
-  // The wave stars at each row, by day (force5/src/waveStars.ts).
-  const waveRated = useMemo(
-    () =>
-      rows.map((r, i) => {
-        const w = waves?.rows[i];
-        return w && w.heightM !== null && r.hour.daylight
-          ? waveStars({
-              height: w.heightM,
-              period: w.periodS,
-              direction: w.from,
-              windFrom: r.hour.wind?.direction_deg ?? null,
-              facing,
-            })
-          : null;
-      }),
-    [rows, waves, facing],
-  );
   const units = useContext(UnitsContext);
   const s = styles();
   const [ref, width] = useWidth<HTMLDivElement>(900);

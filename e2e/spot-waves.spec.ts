@@ -159,7 +159,7 @@ test("Settings says feet or metres, and every wave height follows", async ({
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
   // Feet for everyone until asked otherwise.
-  const waves = page.locator("[data-now-waves]");
+  const waves = page.locator("[data-card-waves]");
   await expect(waves).toContainText(/( ft|under 1 ft)/);
   const svg = page.locator("[data-wave-svg]");
   await expect(svg).not.toContainText(/\d m/);
@@ -174,6 +174,29 @@ test("Settings says feet or metres, and every wave height follows", async ({
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
   await expect(waves).toContainText(/\d\.\d m/);
   await expect(svg).toContainText(/\d m/);
+});
+
+test("the Waves card reads the chosen hour: its height, period and way, and its wave stars by day", async ({
+  page,
+}) => {
+  await withWaves(page);
+  await page.goto("/spot/brandon");
+  await expect(heading(page)).toBeVisible({ timeout: 30000 });
+  const waves = page.locator("[data-card-waves]");
+  // Now is a night: the sea, and no wave stars, as the graph rates none.
+  await expect(waves.locator('[data-card-figure="waves"]')).toHaveText(
+    /^(\d+|<1) ft · \d+ s$/,
+  );
+  await expect(waves.locator('[data-card-line="waves"]')).toHaveText(
+    /^[NESW]{1,3}\b/,
+  );
+  await expect(waves.locator("[data-wave-stars]")).toHaveCount(0);
+  // Midday on a day ahead: the wave stars, as pips.
+  await page.locator('[data-day-card="2026-09-14"]').click();
+  await expect(waves.locator("[data-wave-stars]")).toHaveAttribute(
+    "data-wave-stars",
+    /^[0-5]$/,
+  );
 });
 
 test("with no wave blend published, each model's line and the leading model alone", async ({

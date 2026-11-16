@@ -307,51 +307,57 @@ export interface SpotRow {
   water?: HourWater | null;
 }
 
-/** A stretch of hours with stars: when, the most stars in it, and its wind. */
+/** A stretch of hours with stars: when, the most stars in it, and its best hour. */
 export interface StarWindow {
   from: number;
   /** The end of its last hour. */
   to: number;
   stars: number;
-  /** The wind, lowest and highest, in knots; null where no hour says. */
-  low: number | null;
-  high: number | null;
+  /** The first hour with the most stars in it: where a tap on it goes. */
+  best: number;
+  /** Every hour in it has three stars or more. */
+  good: boolean;
 }
 
-/** How many stars make a window worth naming ahead of an earlier, lesser one. */
-const GOOD_STARS = 3;
+/** How many stars make an hour good: the Next good window's run is of these. */
+export const GOOD_STARS = 3;
 
 /**
- * The next stretch of hours with stars, from the hour now on: the first with
- * three stars or more, else the first with any. Null with none in the rows.
+ * The next good window, from the hour now on: the first run of hours with
+ * three stars or more each; else, with none ahead, the first run of hours
+ * with any stars (`good` false). Null with no stars in the rows.
  */
-export function nextStarWindow(
-  rows: readonly Pick<SpotRow, "time" | "step" | "rating" | "hour">[],
+export function nextGoodWindow(
+  rows: readonly Pick<SpotRow, "time" | "step" | "rating">[],
   now: number,
 ): StarWindow | null {
-  const runs: StarWindow[] = [];
-  let run: StarWindow | null = null;
-  for (const row of rows) {
-    const stars = row.rating?.stars ?? 0;
-    const end = row.time + row.step * HOUR;
-    if (end <= now || stars < 1) {
-      run = null;
-      continue;
+  const first = (least: number) => {
+    let run: StarWindow | null = null;
+    for (const row of rows) {
+      const stars = row.rating?.stars ?? 0;
+      const end = row.time + row.step * HOUR;
+      if (end <= now) continue;
+      if (stars < least) {
+        if (run) return run;
+        continue;
+      }
+      if (!run)
+        run = {
+          from: row.time,
+          to: end,
+          stars,
+          best: row.time,
+          good: least >= GOOD_STARS,
+        };
+      run.to = end;
+      if (stars > run.stars) {
+        run.stars = stars;
+        run.best = row.time;
+      }
     }
-    const kn = row.hour.wind?.wind_kn ?? null;
-    if (!run) {
-      run = { from: row.time, to: end, stars, low: kn, high: kn };
-      runs.push(run);
-      continue;
-    }
-    run.to = end;
-    run.stars = Math.max(run.stars, stars);
-    if (kn !== null) {
-      run.low = run.low === null ? kn : Math.min(run.low, kn);
-      run.high = run.high === null ? kn : Math.max(run.high, kn);
-    }
-  }
-  return runs.find((r) => r.stars >= GOOD_STARS) ?? runs[0] ?? null;
+    return run;
+  };
+  return first(GOOD_STARS) ?? first(1);
 }
 
 /** Rate one forecast hour for a rider at a shore, from the one model's own wind. */

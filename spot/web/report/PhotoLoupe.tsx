@@ -1,8 +1,10 @@
 /**
  * The chart's loupe (shared/web/Loupe.tsx) over a spot's satellite picture,
- * at high or low tide, with what it reads under it (`children`). The picture
- * is drawn as large as the loupe needs to show the rose whole, where a rider
- * can go and where they would drift, and to the picture's own scale, so the
+ * at high or low tide, the reading in its box at the rim's foot, and a small
+ * control laid over the picture's corner (`children`: the tide switch). No
+ * words under it: the hour's cards beside it say the rest. The picture is
+ * drawn as large as the loupe needs to show the rose whole, where a rider can
+ * go and where they would drift, and to the picture's own scale, so the
  * rose's distances are true (satellite.ts `loupeFrame`).
  */
 import type { LoupeRose, RoseScale } from "../../../force5/src/focus";
@@ -20,8 +22,9 @@ import {
 const styles = tv({
   slots: {
     root: "m-0 flex min-w-0 flex-col overflow-hidden rounded-surface bg-sunken on-card",
+    // Wider, beside the cards, as tall as they are: the grid's row sets it.
     photo:
-      "relative h-72 w-full shrink-0 overflow-hidden bg-photo-shade wide:h-auto wide:min-h-72 wide:flex-1",
+      "relative h-72 w-full shrink-0 overflow-hidden bg-photo-shade wide:h-auto wide:min-h-48 wide:flex-1",
     img: "absolute max-w-none transition-opacity duration-base",
   },
 });
@@ -32,6 +35,7 @@ export function PhotoLoupe({
   loupe,
   faint,
   scale,
+  measured,
   className,
   children,
 }: {
@@ -41,6 +45,8 @@ export function PhotoLoupe({
   /** Under the rider's floor: where they could sail, drawn faintly. */
   faint?: Rose | null;
   scale: RoseScale;
+  /** The paired station whose reading the rose says, where it is one. */
+  measured?: string;
   className?: string;
   children?: React.ReactNode;
 }) {
@@ -50,7 +56,12 @@ export function PhotoLoupe({
     : null;
   const s = styles();
   return (
-    <figure className={s.root({ className })} data-photo-loupe data-tide={tide}>
+    <figure
+      className={s.root({ className })}
+      data-photo-loupe
+      data-tide={tide}
+      data-measured={measured}
+    >
       <div ref={ref} className={s.photo()}>
         {frame &&
           (["high", "low"] as const).map((t) => (
@@ -83,10 +94,11 @@ export function PhotoLoupe({
             loupe={loupe}
             faint={faint}
             scale={scale}
+            foot
           />
         )}
+        {children}
       </div>
-      {children}
     </figure>
   );
 }

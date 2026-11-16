@@ -17,6 +17,13 @@ foot ("NE 22 g27 · CROSS"). It is the mockup's recommended design
   tested.
 - Drawing: `drawLoupe` in `force5/src/WindMap.tsx`, styles under
   `.map-rose-*`, `.map-dial-*` and `.map-loupe-*` in `src/map.css`.
+- A spot's page lays the same loupe over the place's satellite picture
+  (`spot/web/report/PhotoLoupe.tsx`, through `shared/web/Loupe.tsx`) for the
+  page's chosen hour, the foot box with it, held inside the picture where a
+  short picture cuts the rim's foot off. Nothing is written under the picture
+  (the hour's cards beside it say the hour, its wind and its shore); the
+  High tide | Low tide switch is small, over the picture's top left corner
+  (2026-11-15).
 - The mobile app draws no loupe. It shares `rideRange` through the light's
   wedge (`mobile/src/features/map/lightsLogic.ts`), so the angles below reach
   it too.

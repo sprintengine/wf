@@ -24,7 +24,7 @@ import {
   hoursZone,
   meanBearing,
   nextMidnight,
-  nextStarWindow,
+  nextGoodWindow,
   type SpotRow,
   rowHours,
   rowWarning,
@@ -630,44 +630,56 @@ describe("the header's shore", () => {
   });
 });
 
-describe("nextStarWindow", () => {
+describe("nextGoodWindow", () => {
   const T = Date.parse("2026-11-06T09:00:00Z");
   const H = 3600000;
-  const row = (at: number, stars: number | null, kn = 12, step = 1) =>
+  const row = (at: number, stars: number | null, step = 1) =>
     ({
       time: T + at * H,
       step,
       rating: stars === null ? null : { stars },
-      hour: { wind: { wind_kn: kn } },
     }) as unknown as SpotRow;
 
-  it("is the first stretch with three stars or more, past a lesser one", () => {
+  it("is the first run of hours with three stars or more, past lesser ones", () => {
     const rows = [
       row(0, 1),
-      row(1, 0),
-      row(2, 3, 14),
-      row(3, 4, 18),
-      row(4, 0),
+      row(1, 2),
+      row(2, 3),
+      row(3, 5),
+      row(4, 4),
+      row(5, 2),
+      row(6, 5),
     ];
-    expect(nextStarWindow(rows, T)).toEqual({
+    expect(nextGoodWindow(rows, T)).toEqual({
       from: T + 2 * H,
-      to: T + 4 * H,
-      stars: 4,
-      low: 14,
-      high: 18,
+      to: T + 5 * H,
+      stars: 5,
+      best: T + 3 * H,
+      good: true,
     });
   });
 
-  it("falls back on the first with any stars", () => {
-    expect(nextStarWindow([row(0, 0), row(1, 2)], T)?.stars).toBe(2);
+  it("goes to the first of its best hours", () => {
+    expect(nextGoodWindow([row(0, 4), row(1, 3), row(2, 4)], T)?.best).toBe(T);
+  });
+
+  it("falls back on the first run with any stars, not called good", () => {
+    expect(nextGoodWindow([row(0, 0), row(1, 2), row(2, 1)], T)).toEqual({
+      from: T + H,
+      to: T + 3 * H,
+      stars: 2,
+      best: T + H,
+      good: false,
+    });
   });
 
   it("leaves out hours gone, and is null with no stars ahead", () => {
-    expect(nextStarWindow([row(0, 4), row(1, 0)], T + 2 * H)).toBeNull();
-    expect(nextStarWindow([row(0, null), row(1, 0)], T)).toBeNull();
+    expect(nextGoodWindow([row(0, 4), row(1, 0)], T + 2 * H)).toBeNull();
+    expect(nextGoodWindow([row(0, null), row(1, 0)], T)).toBeNull();
   });
 
-  it("runs across a three-hour row to its end", () => {
-    expect(nextStarWindow([row(0, 3, 12, 3)], T)?.to).toBe(T + 3 * H);
+  it("holds the hour now, and runs across a three-hour row to its end", () => {
+    expect(nextGoodWindow([row(0, 3), row(1, 0)], T + H / 2)?.from).toBe(T);
+    expect(nextGoodWindow([row(0, 3, 3)], T)?.to).toBe(T + 3 * H);
   });
 });

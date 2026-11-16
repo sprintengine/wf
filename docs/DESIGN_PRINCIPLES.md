@@ -861,9 +861,9 @@ hour, each gust a ring), each reading at the middle of the hour it
 measured, with its own line in the Wind key; at Now the readout's wind,
 gust and direction are the station's last reading, with "Belmullet 1 km,
 21:00" quietly on the label's line, and every other hour, past ones too,
-reads the forecast. The Wind now card above says the same reading, with the
-same note after "Wind now" and the shore word for its direction, and so do
-the picture's rose and its line at Now, so no two of them disagree
+reads the forecast. The Wind card above says the same reading at Now, with
+the same note after "Wind" and the shore word for its direction, and so do
+the picture's rose and its foot box (2026-11-15), so no two of them disagree
 (`measuredNow`, the one answer all read); a reading with no direction has
 no rose, so the picture keeps the forecast's then. A reading over
 three hours old is not the wind now, so Now falls back on the forecast then, as it does with no station near. The
@@ -1534,3 +1534,29 @@ the day the chosen hour falls in is filled in ink, replacing the capsule on
 its name of 2026-11-09; the outline round the days the graph shows stays.
 The graphs' day names hold under the pinned bar, and what the page scrolls
 into view lands under it.
+
+**2026-11-15 — The spot page's hour in four cards, the picture beside them.**
+The second step of the redesign above. Under the pinned bar, "Stars now",
+"Wind now" and "Waves now" give way to a Next good window bar and four cards
+that read the page's chosen hour (now, where none is chosen), so the slider,
+a day card, a held hour or the pointer on a graph moves them as it moves the
+graphs. The bar names the first run of hours ahead with three stars or more
+each, its best stars as pips and its hours ("Mon 15:00–16:00 →"); a tap takes
+the page's hour to the first of its best hours. With no such run ahead it
+names the next hours with any stars ("Next stars"), and with none of those
+says so. The cards: Wind (its stars as five pips, or "Dark", or the warning or
+notice that takes them away; the speed with the gust in the gust's colour,
+the unit, an arrow the way it blows; "SE · cross-shore", in the warning red
+when offshore or cross-offshore), Waves (the wave stars' pips, the height in
+the rider's units with the period, the direction and the water's measured
+temperature; "Water" with the temperature alone where no waves reach), Tide
+(the height, rising or falling, the next high or low and its time) and
+Weather (the air, the sky's glyph, feels like and the rain). At now the Wind
+card says the paired station's fresh reading, as before. The satellite
+picture with its loupe sits beside the cards on a wider screen, its foot
+level with theirs (the row's height is the cards'), and under them on a
+phone. The words under the picture go: the loupe's own foot box says the
+wind and the shore, and the High tide | Low tide switch is small, over the
+picture's corner. This replaces the cards of 2026-11-08 and 2026-11-09, and
+their rule that the cards always say now. Without a picture the cards run
+four across a wide page; a point on the open water has no bar and no stars.

@@ -33,6 +33,9 @@ const styles = tv({
 
 const f1 = (n: number) => Number(n.toFixed(1));
 
+/** How far above the frame's foot the foot box's middle stands, at most. */
+const FOOT_CLEAR = 18;
+
 /** The small one is drawn at this radius and shrunk to its own. */
 const SMALL = 100;
 
@@ -112,8 +115,12 @@ export function Loupe({
         strokeWidth={2}
       />
       {foot && (
-        <g transform={`translate(${f1(cx)} ${f1(cy + R + LOUPE_BAND / 2)})`}>
-          <g ref={footBox} className="map-loupe-foot" />
+        // On the bezel's foot, or held inside the frame where a short frame
+        // cuts the rim off.
+        <g
+          transform={`translate(${f1(cx)} ${f1(Math.min(cy + R + LOUPE_BAND / 2, H - FOOT_CLEAR))})`}
+        >
+          <g ref={footBox} className="map-loupe-foot" data-loupe-foot />
         </g>
       )}
     </svg>

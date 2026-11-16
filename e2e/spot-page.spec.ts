@@ -84,13 +84,15 @@ test("a spot page is a spot report: the name, now, the week, one graph, and the 
   await expect(
     page.locator(`[data-top-bar] [data-view-switch="chart"]`),
   ).toHaveAttribute("href", "/?spot=brandon");
-  // Now, in small cards under the days: the stars, the wind and the waves.
-  const now = page.locator("[data-now-block]");
-  await expect(now).toContainText("Stars now");
-  await expect(now).toContainText("Wind now");
-  await expect(now).toContainText("Waves now");
-  await expect(now).not.toContainText("Water at the launch");
-  await expect(now).not.toContainText("Sea");
+  // The hour, in small cards under the days: the next good window, then the
+  // wind, the waves, the tide and the weather.
+  const hero = page.locator("[data-hero]");
+  await expect(hero.locator("[data-next-window]")).toContainText(
+    "Next good window",
+  );
+  for (const card of ["wind", "waves", "tide", "weather"])
+    await expect(hero.locator(`[data-card-${card}]`)).toBeVisible();
+  await expect(hero).not.toContainText("Water at the launch");
   // The nearby spots come after the name, and before the days.
   const order = await page.evaluate(() => {
     const top = (sel: string) =>
@@ -117,8 +119,7 @@ test("a spot page is a spot report: the name, now, the week, one graph, and the 
   // Two faces: Fraunces for the name, Inter for the rest.
   const faces = await page.evaluate(() => ({
     name: getComputedStyle(document.querySelector("h1")!).fontFamily,
-    body: getComputedStyle(document.querySelector("[data-now-block]")!)
-      .fontFamily,
+    body: getComputedStyle(document.querySelector("[data-hero]")!).fontFamily,
   }));
   expect(faces.name).toMatch(/Fraunces/);
   expect(faces.body).toMatch(/Inter/);
@@ -252,14 +253,6 @@ test("the days and the time slider stay pinned under the site's bar as the page 
   // The Waves graph's day names hold under the pinned bar, not behind it.
   const names = (await page.locator('[data-day-heads="waves"]').boundingBox())!;
   expect(names.y).toBeGreaterThanOrEqual(pinned.y + pinned.height - 1);
-  // The next stars, from the table: the Wind graph comes up just under the bar.
-  await page.evaluate(() => scrollTo(0, 0));
-  await page.getByRole("button", { name: "Table", exact: true }).click();
-  await page.locator("button[data-next-stars]").click();
-  const wind = page.locator('[data-week-section="wind"]');
-  await expect
-    .poll(async () => Math.round((await wind.boundingBox())!.y))
-    .toBe(Math.round(pinned.y + pinned.height));
 });
 
 test("the time slider moves the page's hour, and an hour chosen anywhere else moves it", async ({
@@ -273,7 +266,6 @@ test("the time slider moves the page's hour, and an hour chosen anywhere else mo
   const slider = page.getByRole("slider", { name: /^Hour/ });
   const sliderTag = page.locator("[data-slider-tag]");
   const cursor = page.locator('[data-cursor-tag="wind"] [data-cursor-hour]');
-  const foot = page.locator("[data-loupe-foot]");
   await expect(sliderTag).toHaveText("Now");
   // The hours are a tick each, pink where they have stars, the nights shaded.
   await expect(
@@ -282,13 +274,12 @@ test("the time slider moves the page's hour, and an hour chosen anywhere else mo
   await expect(
     page.locator("[data-slider-hour][data-night]").first(),
   ).toBeAttached();
-  // The keys step the hour: the graph, the picture and the days follow.
+  // The keys step the hour: the graph and the days follow.
   await slider.focus();
   await page.keyboard.press("Shift+ArrowRight");
   await expect(sliderTag).toHaveText(/^Mon \d{2}:00$/);
   const monday = await sliderTag.textContent();
   await expect(cursor).toHaveText(monday!);
-  await expect(foot).toContainText(monday!);
   await expect(page.locator('[data-day-card="2026-09-14"]')).toHaveAttribute(
     "aria-pressed",
     "true",
@@ -373,17 +364,18 @@ test("a day card takes the week to that day, and today back to now", async ({
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
   await expect(page.locator("[data-graph-svg]")).toBeVisible();
-  const now = (await page.locator("[data-now-block]").innerText()) ?? "";
   const tag = page.locator("[data-cursor-tag]");
+  const stars = page.locator("[data-card-wind] [data-your-stars]");
+  // Now is a night: the Wind card says so.
+  await expect(stars).toHaveText("Dark");
   await page.locator("[data-day-card]").nth(2).click();
-  // Midday on that day: the cursor and the picture read it, the cards stay on now.
+  // Midday on that day: the cursor reads it, and the cards with it, in the
+  // day's light.
   await expect(tag).toContainText("12:00");
-  await expect(page.locator("[data-loupe-foot]")).toContainText("12:00");
-  expect(await page.locator("[data-now-block]").innerText()).toContain(
-    now.split("\n")[0],
-  );
+  await expect(stars.locator("[data-stars]")).toBeAttached();
   await page.locator("[data-day-card]").nth(0).click();
   await expect(tag).toHaveCount(0);
+  await expect(stars).toHaveText("Dark");
 });
 
 test("a wheel or a trackpad over the graph reads out the hour that comes under the pointer", async ({
@@ -593,7 +585,7 @@ test("no picture leaves no gap: the cards take the room", async ({ page }) => {
   );
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
-  await expect(page.locator("[data-now]")).toBeVisible();
+  await expect(page.locator("[data-card-wind]")).toBeVisible();
   await expect(page.locator("[data-photo-loupe]")).toHaveCount(0);
 });
 
@@ -604,7 +596,7 @@ test("on a phone the name, now and the picture come first, and the week scrolls"
   await withPictures(page);
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
-  await expect(page.locator("[data-now]")).toBeInViewport();
+  await expect(page.locator("[data-card-wind]")).toBeInViewport();
   const overflow = await page.evaluate(
     () =>
       document.documentElement.scrollWidth -
@@ -1012,8 +1004,10 @@ test("?at= opens the week at that hour, as the pointer would", async ({
     "aria-pressed",
     "true",
   );
-  // The loupe on the picture reads the same hour as the cursor.
-  await expect(page.locator("[data-loupe-foot]")).toContainText("Tue 14:00");
+  // The cards read the same hour as the cursor: in the day's light.
+  await expect(
+    page.locator("[data-card-wind] [data-your-stars] [data-stars]"),
+  ).toBeAttached();
   // The graph is scrolled along to it, past the hours before.
   const graph = page.locator("[data-spot-graph]");
   await expect
@@ -1055,14 +1049,15 @@ test("a point on the open water has a page: its wind, no stars, and the nearest 
   ).toBeVisible({ timeout: 30000 });
   await expect(page).toHaveTitle(/52\.30° N, 10\.10° W/);
   // The forecast: the point's own wind, now and across the week.
-  const now = page.locator("[data-now]");
-  await expect(now).toContainText("Wind now");
-  await expect(now.locator("[data-now-wind]")).toHaveText(/^\d+/);
+  const now = page.locator("[data-card-wind]");
+  await expect(now).toContainText("Wind");
+  await expect(now.locator('[data-card-figure="wind"]')).toHaveText(/^\d+/);
   await expect(page.locator("[data-graph-svg] path").first()).toBeAttached();
   // No stars anywhere: not now, not in the week, not in an hour.
   await expect(page.locator("[data-your-stars]")).toHaveCount(0);
   await expect(page.locator("[data-point-no-stars]")).toBeVisible();
-  for (const where of ["[data-now-block]", "[data-day-card]"])
+  await expect(page.locator("[data-next-window]")).toHaveCount(0);
+  for (const where of ["[data-hero]", "[data-day-card]"])
     await expect(page.locator(`${where} [data-stars]`)).toHaveCount(0);
   await page.getByRole("button", { name: "Table", exact: true }).click();
   await expect(page.locator("[data-hour-table] thead")).not.toContainText(
@@ -1195,12 +1190,12 @@ for (const [id, station] of [
   ["belmullet", "ME_03976"],
   ["brandon", null],
 ] as const) {
-  test(`the Wind now card, the phone's tag at Now and the picture's rose say the same wind, ${station ? "as measured" : "the forecast's"}, at ${id}`, async ({
+  test(`the Wind card, the phone's tag and the picture's rose say the same wind, ${station ? "as measured" : "the forecast's"} at Now, at ${id}`, async ({
     page,
   }) => {
     // A phone: its tag is the one that says the wind at the hour.
     await page.setViewportSize({ width: 390, height: 844 });
-    // A picture of each place, so its rose and its line are drawn.
+    // A picture of each place, so its rose and its foot are drawn.
     await withPictures(page);
     await page.route("**/satellite/spots.json", (route) =>
       route.fulfill({
@@ -1221,47 +1216,129 @@ for (const [id, station] of [
     await page.goto(`/spot/${id}`);
     const readWind = page.locator('[data-cursor-tag="wind"]');
     await expect(readWind).toContainText("Now", { timeout: 30000 });
-    const card = page.locator("[data-now]");
-    const cardWind = card.locator("[data-now-wind]");
-    const foot = page.locator("[data-photo-loupe] [data-loupe-foot]");
+    const card = page.locator("[data-card-wind]");
+    const cardWind = card.locator('[data-card-figure="wind"]');
+    const picture = page.locator("[data-photo-loupe]");
+    const foot = picture.locator("[data-loupe-foot]");
     await expect(cardWind).toBeVisible();
     await expect(foot).toBeVisible();
     if (station) {
       // All the station's last reading; the card says where and when.
       await expect(cardWind).toHaveAttribute("data-measured", station);
       await expect(readWind).toHaveAttribute("data-measured", station);
-      await expect(foot).toHaveAttribute("data-measured", station);
-      await expect(card.locator("[data-now-source]")).toHaveText(
+      await expect(picture).toHaveAttribute("data-measured", station);
+      await expect(card.locator("[data-wind-source]")).toHaveText(
         "· Belmullet 1 km, 22:00",
       );
     } else {
       // No station within reach: both the forecast, from nowhere else.
       await expect(cardWind).not.toHaveAttribute("data-measured", /.*/);
       await expect(readWind).not.toHaveAttribute("data-measured", /.*/);
-      await expect(foot).not.toHaveAttribute("data-measured", /.*/);
-      await expect(card.locator("[data-now-source]")).toHaveCount(0);
+      await expect(picture).not.toHaveAttribute("data-measured", /.*/);
+      await expect(card.locator("[data-wind-source]")).toHaveCount(0);
     }
-    const cardText = await cardWind.textContent();
-    const readText = await readWind.textContent();
-    expect(figures(cardText).length).toBeGreaterThan(0);
-    expect(figures(cardText)).toEqual(figures(readText));
-    // The picture's line: "ENE 4 g6 · offshore", the same wind, gust and way.
-    const footText = await foot.textContent();
-    expect(figures(footText)).toEqual(figures(readText));
-    expect(point(footText)).toBe(
-      point(await card.locator("[data-now-direction]").textContent()),
-    );
-    // And the same word for the shore as the card, where it has one.
-    const shoreWord = (text: string | null) =>
-      (text ?? "").match(
-        /(cross-shore|cross-off|cross-on|offshore|onshore)/,
-      )?.[0] ?? null;
-    const cardShore = shoreWord(
-      await card.locator("[data-now-direction]").textContent(),
-    );
-    if (cardShore) expect(shoreWord(footText)).toBe(cardShore);
+    await expectSameWind(page);
   });
 }
+
+/**
+ * The Wind card, a phone's tag at the hour and the foot of the picture's
+ * loupe say one wind: its figures, the way it blows from, and the shore.
+ */
+async function expectSameWind(page: Page) {
+  const card = page.locator("[data-card-wind]");
+  const cardText = await card
+    .locator('[data-card-figure="wind"]')
+    .textContent();
+  // The tag's reading, past its hour and its stars: "Mon 09:00 · ★4 · 15 kn".
+  const readText = (
+    (await page.locator('[data-cursor-tag="wind"]').textContent()) ?? ""
+  )
+    .replace(/^[^·]*·/, "")
+    .replace(/★\d/, "");
+  expect(figures(cardText).length).toBeGreaterThan(0);
+  expect(figures(cardText)).toEqual(figures(readText));
+  // The loupe's foot: "ENE 4 g6" and the shore, "Off".
+  const footText = await page
+    .locator("[data-photo-loupe] [data-loupe-foot]")
+    .textContent();
+  expect(figures(footText)).toEqual(figures(readText));
+  const line = await card.locator('[data-card-line="wind"]').textContent();
+  expect(point(footText)).toBe(point(line));
+  // And the same shore as the card's, in the foot's own word.
+  const relation: Record<string, string> = {
+    onshore: "On",
+    "cross-on": "Cross-on",
+    "cross-shore": "Cross",
+    "cross-off": "Cross-off",
+    offshore: "Off",
+  };
+  const shore = (line ?? "").match(
+    /(cross-shore|cross-off|cross-on|offshore|onshore)/,
+  )?.[0];
+  if (shore) expect(footText).toMatch(new RegExp(`${relation[shore]}$`));
+}
+
+test("the next good window takes the page to its best hour, and the cards follow the hour", async ({
+  page,
+}) => {
+  // A phone: its tag says the wind at the hour, as the card does.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await withPictures(page);
+  await withTides(page);
+  await page.goto("/spot/brandon");
+  await expect(heading(page)).toBeVisible({ timeout: 30000 });
+  const next = page.locator("[data-next-window]");
+  // The first run of hours with three stars or more, its best stars as pips.
+  await expect(next).toContainText("Next good window");
+  await expect(next).toContainText(/\w{3} \d{2}:00–\d{2}:00/);
+  const best = Number(
+    await next.locator("[data-stars]").getAttribute("data-stars"),
+  );
+  expect(best).toBeGreaterThanOrEqual(3);
+  const tide = await page.locator("[data-card-tide]").textContent();
+  await next.click();
+  // The page's hour goes there, the slider, the days and the cards with it.
+  const sliderTag = page.locator("[data-slider-tag]");
+  await expect(sliderTag).toHaveText(/^\w{3} \d{2}:00$/);
+  const [from, to] = (await next.textContent())!
+    .match(/\d{2}:00/g)!
+    .map((t) => Number(t.slice(0, 2)));
+  const hour = Number((await sliderTag.textContent())!.slice(4, 6));
+  expect(hour).toBeGreaterThanOrEqual(from);
+  expect(hour).toBeLessThan(to || 24);
+  await expect(
+    page.locator("[data-card-wind] [data-your-stars] [data-stars]"),
+  ).toHaveAttribute("data-stars", String(best));
+  await expect(page.locator("[data-card-tide]")).not.toHaveText(tide!);
+  // The tide and the weather at that hour, in full.
+  await expect(page.locator('[data-card-figure="tide"]')).toHaveText(
+    /^\d\.\d m [↑↓] (rising|falling)$/,
+  );
+  await expect(page.locator('[data-card-line="tide"]')).toHaveText(
+    /^(high|low) at \d{2}:\d{2}( \w{3})?$/,
+  );
+  // The air, then the sky glyph's own words.
+  await expect(page.locator('[data-card-figure="weather"]')).toHaveText(
+    /^-?\d+°\D/,
+  );
+  await expect(page.locator('[data-card-line="weather"]')).toHaveText(
+    /^feels -?\d+° · (dry|<?\d+(\.\d)? mm\/h)$/,
+  );
+  await expect(page.locator('[data-cursor-tag="wind"]')).toContainText(
+    (await sliderTag.textContent())!,
+  );
+  await expectSameWind(page);
+  // The tide in the picture is switched on its corner.
+  const picture = page.locator("[data-photo-loupe]");
+  await picture.getByRole("button", { name: "Low tide" }).click();
+  await expect(picture).toHaveAttribute("data-tide", "low");
+  // Now again: the cards with it.
+  await page.getByRole("slider", { name: /^Hour/ }).focus();
+  await page.keyboard.press("Home");
+  await expect(sliderTag).toHaveText("Now");
+  await expect(page.locator("[data-card-tide]")).toHaveText(tide!);
+});
 
 /**
  * A finger's drag from one point to another, as the phone's own touch events

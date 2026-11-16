@@ -44,6 +44,21 @@ async function openMap(page: Page) {
     .toBeGreaterThan(0);
 }
 
+test("on the narrowest phone the four chips still fit the dock, their words without icons", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await openMap(page);
+  const chips = foot(page).locator("[data-map-field]");
+  await expect(chips).toHaveCount(4, { timeout: 20000 });
+  const dockBox = (await foot(page).locator(".map-dock").boundingBox())!;
+  for (const chip of await chips.all()) {
+    const box = (await chip.boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(dockBox.x + dockBox.width);
+    await expect(chip.locator("svg")).toBeHidden();
+  }
+});
+
 test("the map opens first, then the list, which has no dock", async ({
   page,
 }) => {

@@ -1602,6 +1602,13 @@
     margin-left: 0;
   }
 }
+/* On the narrowest phones (320 px) the four chips' words alone fit, so their
+   icons go. */
+@media (max-width: 359px) {
+  .md-chips [aria-hidden="true"]:has(> svg) {
+    display: none;
+  }
+}
 /* Where the dock over the scrub bar leaves no room at its side, the small
    print stands over the dock instead. */
 @media (max-width: 1199px) {

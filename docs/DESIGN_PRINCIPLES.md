@@ -1248,7 +1248,8 @@ the Waves legend draws the cards' own wave-height ramp (`--color-waves-*`), so a
 metre is the same colour on the map as on a card.
 
 The legend stands at the dock's right: "Shallow water" with its swatch with no
-field on (Tide's ramp since 2026-11-16), else the field's ramp with its unit and a few figures under it,
+field on (since 2026-11-16 no field on has no legend, and the swatch is Tide's
+when zoomed out), else the field's ramp with its unit and a few figures under it,
 evenly spaced and never touching (src/MapScales.tsx). It names no source, and
 on a phone there is none. Under the chips on the finder's map is the strip of
 hours (2026-11-14). It and the cards share one hour both ways, and with a
@@ -1660,7 +1661,8 @@ frames are listed sees Tide meanwhile. The choice is kept in
 `wingfoil.map.field.v1` is read once, its none (which was the glowing
 shallows) as Tide, and a rider who had Coloured wind on still starts on Wind.
 Under Tide the pills say what they say with none: the wind and the sky. On a
-phone the four chips share the dock's width, each as wide as its word. This
+phone the four chips share the dock's width, each as wide as its word, and
+under 360 px without their icons. This
 replaces the map with no field on as the tidal depth and its "Shallow water"
 legend (2026-11-07). The phone app's chart has no field chips (its Layers
 sheet keeps a Tidal depth switch) and is unchanged for now.

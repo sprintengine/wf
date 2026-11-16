@@ -1311,6 +1311,20 @@ test("the next good window takes the page to its best hour, and the cards follow
     page.locator("[data-card-wind] [data-your-stars] [data-stars]"),
   ).toHaveAttribute("data-stars", String(best));
   await expect(page.locator("[data-card-tide]")).not.toHaveText(tide!);
+  // The tide and the weather at that hour, in full.
+  await expect(page.locator('[data-card-figure="tide"]')).toHaveText(
+    /^\d\.\d m [↑↓] (rising|falling)$/,
+  );
+  await expect(page.locator('[data-card-line="tide"]')).toHaveText(
+    /^(high|low) at \d{2}:\d{2}( \w{3})?$/,
+  );
+  // The air, then the sky glyph's own words.
+  await expect(page.locator('[data-card-figure="weather"]')).toHaveText(
+    /^-?\d+°\D/,
+  );
+  await expect(page.locator('[data-card-line="weather"]')).toHaveText(
+    /^feels -?\d+° · (dry|<?\d+(\.\d)? mm\/h)$/,
+  );
   await expect(page.locator('[data-cursor-tag="wind"]')).toContainText(
     (await sliderTag.textContent())!,
   );

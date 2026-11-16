@@ -613,7 +613,7 @@ export function SpotReport({
     () => (obs ? pairStation(spot, obs.stations) : null),
     [obs, spot.lat, spot.lon],
   );
-  // The wind now as that station measured it, while fresh: the Wind now
+  // The wind now as that station measured it, while fresh: the Wind
   // card and a phone's tag at Now both say it, so they never disagree.
   const nowMeasured = useMemo(() => measuredNow(paired, now), [paired, now]);
   const [firstNow] = useState(now);
@@ -829,7 +829,7 @@ export function SpotReport({
   };
   const scale = useMemo(() => roseScale(units), [units]);
   // At Now the picture's rose says the wind the station measured, as the
-  // Wind now card and a phone's tag do; a reading with no direction has no
+  // Wind card at Now and a phone's tag do; a reading with no direction has no
   // rose to draw, so the forecast's stands then.
   const loupeMeasured =
     shown !== null && shown === nowRow && nowMeasured?.reading.from != null
@@ -1244,13 +1244,6 @@ function NearbyStrip({
 }
 
 /**
- * What the place is like now, on three small cards under the days: the stars,
- * the wind and the waves. Always this hour's, whichever the graph has
- * selected: it is the picture beside them that follows the hour. With no
- * stars to show, the Stars card says when the next ones are, and takes you
- * there.
- */
-/**
  * An hour's stars on a card: five pips in a row, as many lit as it has, in
  * the stars' pink or the wave stars' green, as the graph counts them.
  */
@@ -1502,8 +1495,8 @@ function HourCards({
         <div className={s.card()} data-card-waves>
           <div className={s.cardHead()}>
             <span className={s.cardName()}>{hasWaves ? "Waves" : "Water"}</span>
-            {hasWaves && rated && waves?.heightM != null && (
-              <PipRow n={waveRating?.stars ?? 0} waves />
+            {hasWaves && rated && waveRating && (
+              <PipRow n={waveRating.stars} waves />
             )}
           </div>
           <div className={s.cardFigure()} data-card-figure="waves">
@@ -1535,7 +1528,7 @@ function HourCards({
                 {waves?.from != null && compass(waves.from)}
                 {waves?.from != null && sea && " · "}
                 {seaWords}
-                {waves?.from == null && !sea && "No wave reading"}
+                {waves?.heightM == null && !sea && "No wave reading"}
               </>
             ) : (
               seaWords

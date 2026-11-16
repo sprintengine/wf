@@ -276,7 +276,7 @@ export interface MeasuredReading {
  * The wind now as measured beside a spot: its paired station's latest
  * reading by `now`, or null where there is no station or its last reading is
  * over READING_FRESH_HOURS old, and the forecast stands for the wind now. The
- * one answer the spot page's Wind now card, its readout at Now and the scrub
+ * one answer the spot page's Wind card at Now, its readout at Now and the scrub
  * bar's readout at now all give.
  */
 export function measuredNow(

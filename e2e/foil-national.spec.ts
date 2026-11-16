@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import {
   barName,
   expect,
+  fieldChip,
   mapDock,
   openFromMenu,
   setField,
@@ -251,9 +252,9 @@ test("a national region draws on its own station's tide, answers a tap, and only
   expect(await differs(page, atLow, off)).toBeGreaterThan(0.05);
   expect(await differs(page, atHigh, atLow)).toBeGreaterThan(0.02);
 
-  // Back on, at high water: a tap beside the spot, on the flat, is read out
-  // as (tide − 1) m of water at Galway's tide.
-  await setField(page, "Weather", false);
+  // Back on with the Tide chip, at high water: a tap beside the spot, on the
+  // flat, is read out as (tide − 1) m of water at Galway's tide.
+  await setField(page, "Tide", true);
   await slider.fill(String(high.i));
   const spot = (await page
     .locator('.spot-marker[data-spot-id="rusheen"]')
@@ -309,9 +310,10 @@ test("over the whole chart only the coast's glow is fetched, and its part of Abo
   await page.waitForTimeout(1000);
   expect(asked).toEqual([]);
   expect(glow).toBe(1);
-  // The map with no field on: its legend names the glow.
-  await expect(mapDock(page).locator('[data-map-legend="none"]')).toHaveText(
-    "Shallow water",
+  // Tide, a first visit's field: out here its legend says to zoom in.
+  await expect(fieldChip(page, "Tide")).toHaveAttribute("aria-pressed", "true");
+  await expect(mapDock(page).locator('[data-map-legend="tide"]')).toHaveText(
+    "Zoom in for this hour's depths",
   );
   await openFromMenu(page, "About the map");
   await page.getByRole("tab", { name: "Tidal depth" }).click();

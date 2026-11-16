@@ -39,6 +39,7 @@ import {
   areasInView,
   FOIL_FULL_ZOOM,
   FOIL_MIN_ZOOM,
+  FOIL_ZOOM_LEGEND,
   foilColours,
   foilRamp,
   foilReadout,
@@ -73,6 +74,7 @@ import MapControls from "./MapControls";
 import { LAYER_DEFAULTS } from "./layerGroups";
 import {
   FIELD_KEY,
+  OLD_FIELD_KEY,
   offeredFields,
   parseMapField,
   shownField,
@@ -556,10 +558,12 @@ export default function App() {
     parseWindLayers(store.get(WIND_KEY), store.get(OLD_WIND_KEY)),
   );
   // The map's one field, the dock's chips' (force5/src/mapField.ts): a rider
-  // who had Coloured wind on starts on Wind, everyone else on none.
+  // who left the shallows glowing before Tide had a chip is on Tide, one who
+  // had Coloured wind on starts on Wind, everyone else on Tide.
   const [field, setField] = useState<MapField>(() =>
     parseMapField(
       store.get(FIELD_KEY),
+      store.get(OLD_FIELD_KEY),
       parseWindLayers(store.get(WIND_KEY), store.get(OLD_WIND_KEY)),
     ),
   );
@@ -607,12 +611,12 @@ export default function App() {
       return DEFAULT_LAYERS;
     }
   });
-  // The tidal depth and the rain follow the field: the shallows glow with no
-  // field on, and the rain is the Weather field until the sky is drawn.
+  // The tidal depth and the rain follow the field: the shallows glow under
+  // Tide, and the rain is the Weather field until the sky is drawn.
   const layers = useMemo<MapLayers>(
     () => ({
       ...savedLayers,
-      foil: fieldShown === "none",
+      foil: fieldShown === "tide",
       rain: fieldShown === "weather",
     }),
     [savedLayers, fieldShown],
@@ -933,8 +937,9 @@ export default function App() {
 
   /* ---- the map's frame follows the time, a little behind a fast scrub ---- */
   // Beside the list, with a field on, the map is at the cards' hour, which the
-  // strip of hours under it scrubs: its frames (and the rain) are that hour's. With
-  // none on, nothing is drawn from them there, so no hour is read for it. On
+  // strip of hours under it scrubs: its frames (and the rain) are that hour's.
+  // With none on, or Tide, nothing is drawn from them there, so no hour is
+  // read for it (the tidal depth reads the cards' hour itself, `foilTime`). On
   // the full chart, the chart's own.
   const finderTime = useMemo(
     () =>
@@ -946,7 +951,10 @@ export default function App() {
   // The first time set goes to the map at once; a scrub after it is throttled.
   const mapTime =
     useThrottled(
-      page === "chart" || finderTime === null || fieldShown === "none"
+      page === "chart" ||
+        finderTime === null ||
+        fieldShown === "none" ||
+        fieldShown === "tide"
         ? selectedTime
         : finderTime,
       200,
@@ -1434,12 +1442,16 @@ export default function App() {
   // far it goes, quietly ("Sky map to Wed").
   const past = (reach: number | null) =>
     reach !== null && Number.isFinite(mapAt) && mapAt > reach;
+  // Tide out past the depths' zoom is the coast's faint glow alone, with no
+  // tide in it: the legend says to zoom in.
   const legendNote =
-    fieldShown === "weather" && !rain.view && past(rain.reach)
-      ? `Sky map to ${dayShort(rain.reach!)}`
-      : fieldShown === "waves" && !waves.view && past(waves.reach)
-        ? `Wave map to ${dayShort(waves.reach!)}`
-        : null;
+    fieldShown === "tide" && foilFar
+      ? FOIL_ZOOM_LEGEND
+      : fieldShown === "weather" && !rain.view && past(rain.reach)
+        ? `Sky map to ${dayShort(rain.reach!)}`
+        : fieldShown === "waves" && !waves.view && past(waves.reach)
+          ? `Wave map to ${dayShort(waves.reach!)}`
+          : null;
   const rainLine = rain.view
     ? `Shown: the rain ${dayShort(rain.view.from)} ${clock(rain.view.from)} to ${clock(rain.view.to)}${
         rain.view.to - rain.view.from > 3600000 ? ", per hour" : ""

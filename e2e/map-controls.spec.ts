@@ -2,6 +2,7 @@ import {
   SITE_ROW_TEXTS,
   SITE_ROWS,
   closeLayers,
+  FIELD_KEY,
   expect,
   fieldChip,
   layerTile,
@@ -135,9 +136,10 @@ test("the chart's controls: zoom and Layers on the right, Layers the rail on a p
 test("the map's information is one dialog over the dimmed chart, from the menu's About", async ({
   page,
 }) => {
-  // The tidal depth on: the map with no field, as a rider who left it so.
-  await page.addInitScript(() =>
-    localStorage.setItem("wingfoil.map.field.v1", "none"),
+  // The tidal depth on: the Tide field, as a rider who left it so.
+  await page.addInitScript(
+    (key) => localStorage.setItem(key, "tide"),
+    FIELD_KEY,
   );
   // And Brandon Bay in the scrub bar, from the link: the stars' link names it.
   await page.goto("/?spot=brandon");

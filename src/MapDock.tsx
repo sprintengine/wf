@@ -15,12 +15,18 @@ import {
   type MapField,
 } from "../force5/src/mapField";
 import MapScales from "./MapScales";
+import { TidalDepthGlyph } from "./chartGlyphs";
 
-/** Each field's line icon on its chip: lines of wind, waves, the sun and a cloud. */
+/**
+ * Each field's line icon on its chip: lines of wind, waves, the sun and a
+ * cloud, and for Tide the tidal depth's own glyph (the water's height over a
+ * shelving bed), as About the map draws it.
+ */
 const ICONS: Record<FieldId, ReactNode> = {
   wind: <Wind size={16} strokeWidth={1.75} />,
   waves: <Waves size={16} strokeWidth={1.75} />,
   weather: <CloudSun size={16} strokeWidth={1.75} />,
+  tide: <TidalDepthGlyph size={16} strokeWidth={1.75} />,
 };
 
 /**
@@ -28,9 +34,9 @@ const ICONS: Record<FieldId, ReactNode> = {
  * when. Its top row is the fields' lit chips (ui/Chip.tsx `lit`), at most one
  * on, and the legend at its right (src/MapScales.tsx); under them, where the
  * page has one, the finder's strip of hours (src/TimeStrip.tsx): the hour in
- * words over a playhead, and the hours a finger scrubs under it. With no field
- * on, the map is plain and the shallows glow round the coast; pressing the
- * chip that is on turns it off, back to that.
+ * words over a playhead, and the hours a finger scrubs under it. Tide, the
+ * shallows coloured by their depth at the hour, is a first visit's; pressing
+ * the chip that is on turns it off, to the plain map with no legend.
  *
  * The chips are one group with one stop on Tab: the arrows walk them, Home
  * and End go to the ends, Space or Enter presses, and Escape turns the field

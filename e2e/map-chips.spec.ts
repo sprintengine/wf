@@ -1,5 +1,6 @@
 import {
   FIELD_KEY,
+  OLD_FIELD_KEY,
   SPOTS_KEY,
   expect,
   fieldChip,
@@ -17,10 +18,11 @@ import { irishDate } from "../src/strip";
 /**
  * The map's field, chosen with the lit chips in its dock (src/MapDock.tsx,
  * force5/src/mapField.ts): Wind, Waves (only while the wave model's pointer
- * lists frames for the map) and Weather, at most one on, the one on pressed again for none, which is
- * the plain map with the shallows glowing. The same choice on the finder's
- * map and on the full chart, kept on the device, none too. Beside the list
- * the dock has the strip of hours, which shares the cards' hour.
+ * lists frames for the map), Weather and Tide, at most one on, the one on
+ * pressed again for none, which is the plain map. Tide, the shallows glowing
+ * by their depth at the hour, is a first visit's. The same choice on the
+ * finder's map and on the full chart, kept on the device, none too. Beside
+ * the list the dock has the strip of hours, which shares the cards' hour.
  */
 
 const harmonie = readSample("harmonie");
@@ -74,24 +76,23 @@ function windHoursAsked(page: Page) {
   return asked;
 }
 
-test("beside the list: Wind, Waves and Weather, none on at first, one at a time, and the one on pressed again for none", async ({
+test("beside the list: Wind, Waves, Weather and Tide, Tide on at first, one at a time, and the one on pressed again for none", async ({
   page,
 }) => {
   await openFinder(page);
   // The e2e site's wave run lists frames: a Waves chip, once the page is idle.
   await expect(fieldChips(page).getByRole("button")).toHaveText(
-    ["Wind", "Waves", "Weather"],
+    ["Wind", "Waves", "Weather", "Tide"],
     { timeout: 20000 },
   );
-  // A first visit: none on, the shallows' legend.
-  expect(await pressed(page)).toEqual([]);
+  // A first visit: Tide on, the tidal depth's legend.
+  expect(await pressed(page)).toEqual(["Tide"]);
   for (const name of ["Wind", "Waves", "Weather"] as const)
     await expect(fieldChip(page, name)).toHaveAttribute(
       "aria-pressed",
       "false",
     );
-  await expect(legend(page)).toHaveAttribute("data-map-legend", "none");
-  await expect(legend(page)).toHaveText("Shallow water");
+  await expect(legend(page)).toHaveAttribute("data-map-legend", "tide");
   const canvas = page.locator(".particle-canvas");
   await expect(canvas).toHaveAttribute("data-wind", "");
 
@@ -114,10 +115,10 @@ test("beside the list: Wind, Waves and Weather, none on at first, one at a time,
   await expect(legend(page)).toHaveAttribute("data-map-legend", "weather");
   await expect(canvas).toHaveAttribute("data-wind", "");
 
-  // Pressed again: none, and the shallows back.
+  // Pressed again: none, the plain map, with no legend.
   await fieldChip(page, "Weather").click();
   expect(await pressed(page)).toEqual([]);
-  await expect(legend(page)).toHaveText("Shallow water");
+  await expect(legend(page)).toHaveCount(0);
   // Off, the chip is a ghost: no fill and no edge, once the pointer has left
   // it (under the pointer it takes a faint fill).
   await page.mouse.move(10, 10);
@@ -129,6 +130,43 @@ test("beside the list: Wind, Waves and Weather, none on at first, one at a time,
       }),
     )
     .toEqual(["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"]);
+
+  // Tide back on, and pressed again for the plain map.
+  await fieldChip(page, "Tide").click();
+  expect(await pressed(page)).toEqual(["Tide"]);
+  await expect(legend(page)).toHaveAttribute("data-map-legend", "tide");
+  await fieldChip(page, "Tide").click();
+  expect(await pressed(page)).toEqual([]);
+  await expect(legend(page)).toHaveCount(0);
+});
+
+test("Tide's legend: the depth at this tide where the depths are drawn, and a note to zoom in out past them", async ({
+  page,
+}) => {
+  await openFinder(page);
+  await expect(fieldChip(page, "Tide")).toHaveAttribute("aria-pressed", "true");
+  // Out past the depths' zoom: the shallows' faint glow, and the note.
+  const map = (await page.locator(".maplibregl-canvas").boundingBox())!;
+  await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
+  for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 400);
+  await expect(legend(page)).toHaveAttribute("data-map-legend-note");
+  await expect(legend(page)).toHaveText("Zoom in for this hour's depths");
+  await expect(legend(page).locator(".ml-swatch")).toHaveCount(1);
+  // In close: the ramp, dry to deep, the metre a mast needs among its marks.
+  for (let i = 0; i < 16; i++) await page.mouse.wheel(0, -400);
+  await expect(legend(page)).not.toHaveAttribute("data-map-legend-note");
+  await expect(legend(page)).toContainText("Depth");
+  await expect(legend(page).locator(".ml-marks span")).toHaveText([
+    "Dry",
+    "0",
+    "1 m",
+    "3 m",
+    "6 m+",
+  ]);
+  await expect(legend(page)).toHaveAttribute(
+    "aria-label",
+    /too shallow for a mast, strong blue from 1 metre/,
+  );
 });
 
 test("with no wave frames listed there is no Waves chip", async ({ page }) => {
@@ -139,6 +177,7 @@ test("with no wave frames listed there is no Waves chip", async ({ page }) => {
   await expect(fieldChips(page).getByRole("button")).toHaveText([
     "Wind",
     "Weather",
+    "Tide",
   ]);
   await page.waitForTimeout(3000);
   await expect(fieldChip(page, "Waves")).toHaveCount(0);
@@ -186,28 +225,35 @@ test("the chips are one stop on Tab: the arrows walk them, Space and Enter press
   const wind = fieldChip(page, "Wind");
   const waves = fieldChip(page, "Waves");
   const weather = fieldChip(page, "Weather");
+  const tide = fieldChip(page, "Tide");
   await expect(waves).toBeVisible({ timeout: 20000 });
-  // One stop: the first chip with none on.
-  await expect(wind).toHaveAttribute("tabindex", "0");
-  await expect(weather).toHaveAttribute("tabindex", "-1");
-  await wind.focus();
+  // One stop: the chip that is on, Tide on a first visit.
+  await expect(tide).toHaveAttribute("tabindex", "0");
+  await expect(wind).toHaveAttribute("tabindex", "-1");
+  await tide.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(wind).toBeFocused();
   await page.keyboard.press("ArrowRight");
   await expect(waves).toBeFocused();
   await page.keyboard.press("ArrowRight");
   await expect(weather).toBeFocused();
-  // Round from the end to the start, and Home and End.
   await page.keyboard.press("ArrowRight");
-  await expect(wind).toBeFocused();
-  await page.keyboard.press("End");
-  await expect(weather).toBeFocused();
+  await expect(tide).toBeFocused();
+  // Home and End, and round from the start to the end.
   await page.keyboard.press("Home");
   await expect(wind).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(tide).toBeFocused();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowLeft");
+  await expect(tide).toBeFocused();
   await page.keyboard.press("ArrowLeft");
   await expect(weather).toBeFocused();
   // Space presses the chip with the focus; Enter another, in its place.
   await page.keyboard.press("Space");
   await expect(weather).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("ArrowRight");
+  await expect(tide).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("Home");
   await expect(wind).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(wind).toHaveAttribute("aria-pressed", "true");
@@ -215,7 +261,7 @@ test("the chips are one stop on Tab: the arrows walk them, Space and Enter press
   // Escape: none, the focus where it was.
   await page.keyboard.press("Escape");
   await expect(wind).toHaveAttribute("aria-pressed", "false");
-  await expect(weather).toHaveAttribute("aria-pressed", "false");
+  await expect(tide).toHaveAttribute("aria-pressed", "false");
   await expect(wind).toBeFocused();
   // Tab leaves the group, and Shift+Tab comes back to the chip it left.
   await page.keyboard.press("Tab");
@@ -260,22 +306,47 @@ test("the choice is kept on the device, none too, and is the full chart's as wel
     await expect(
       layersRail(page).getByRole("button", { name, exact: true }),
     ).toHaveCount(0);
-  // None, kept as none.
+  // None, the plain map, kept as none.
   await fieldChip(page, "Weather").click();
   await page.reload();
-  await expect(legend(page)).toHaveText("Shallow water", { timeout: 30000 });
+  await expect(fieldChip(page, "Tide")).toHaveAttribute(
+    "aria-pressed",
+    "false",
+    { timeout: 30000 },
+  );
+  expect(await pressed(page)).toEqual([]);
+  await expect(legend(page)).toHaveCount(0);
   expect(
     await page.evaluate((key) => localStorage.getItem(key), FIELD_KEY),
   ).toBe("none");
+  // A rider who left the shallows glowing before Tide had a chip ("none" in
+  // the old key) is on Tide.
+  await page.evaluate(
+    ([key, old]) => {
+      localStorage.removeItem(key);
+      localStorage.setItem(old, "none");
+    },
+    [FIELD_KEY, OLD_FIELD_KEY] as const,
+  );
+  await page.reload();
+  await expect(fieldChip(page, "Tide")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+    { timeout: 30000 },
+  );
   // A rider whose stored wind had the colour on, and no field yet, starts on
   // Wind.
-  await page.evaluate((key) => {
-    localStorage.removeItem(key);
-    localStorage.setItem(
-      "wingfoil.map.wind.v2",
-      JSON.stringify({ wash: true, particles: true }),
-    );
-  }, FIELD_KEY);
+  await page.evaluate(
+    ([key, old]) => {
+      localStorage.removeItem(key);
+      localStorage.removeItem(old);
+      localStorage.setItem(
+        "wingfoil.map.wind.v2",
+        JSON.stringify({ wash: true, particles: true }),
+      );
+    },
+    [FIELD_KEY, OLD_FIELD_KEY] as const,
+  );
   await page.reload();
   await expect(fieldChip(page, "Wind")).toHaveAttribute(
     "aria-pressed",
@@ -340,12 +411,12 @@ test("beside the list the strip of hours scrubs the list's hour, sharing it with
   await expect(page.locator("[data-finder-day]")).toContainText("Tomorrow");
 });
 
-test("with no field on, a scrub of the strip of hours reads no wind for the map", async ({
+test("with Tide on, a first visit's, a scrub of the strip of hours reads no wind for the map", async ({
   page,
 }) => {
   const asked = windHoursAsked(page);
   await openFinder(page);
-  await expect(legend(page)).toHaveText("Shallow water");
+  await expect(legend(page)).toHaveAttribute("data-map-legend", "tide");
   await page.waitForTimeout(1500);
   const before = new Set(asked);
   await hourTrack(page).focus();

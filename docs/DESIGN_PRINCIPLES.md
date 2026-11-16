@@ -950,7 +950,8 @@ do want it on the finders map"; "I'm happy that you only see it when you zoom in
 on the whole Ireland chart... too much data"; "When you zoom out we just put
 like a little bit of a faint blue glow around, like a cheap, something much
 cheaper. And then when you zoom in, then you know it shows the more detail."
-It is the map with no field on (2026-11-07).
+It is the map with no field on (2026-11-07), and the Tide field since
+2026-11-16.
 
 **2026-11-07 — The sea's coast is the chart's one bright line.** At country
 zoom every lough, pond and river polygon, and every island in them, was
@@ -1223,7 +1224,9 @@ field, Wind, Waves or Weather, chosen with three chips in a dock centred on the
 map's foot (src/MapDock.tsx), the same on the finder and the full chart. At
 most one is on, and pressing the one on turns it off. With none on, which is a
 first visit, the map is dark and plain and the shallows glow blue round the
-coast (the tidal depth); with a field on the glow hides. Wind is the coloured
+coast (the tidal depth); with a field on the glow hides. (Since 2026-11-16 the
+glow is the fourth chip, Tide, a first visit's field, and none is the plain
+map.) Wind is the coloured
 wind; Weather is the sky with the rain over it (2026-11-08); Waves is the wave
 height on the sea alone, and its chip is shown only while there are wave
 frames for the map to draw (force5/src/mapField.ts `offeredFields`). The rider's last
@@ -1245,7 +1248,7 @@ the Waves legend draws the cards' own wave-height ramp (`--color-waves-*`), so a
 metre is the same colour on the map as on a card.
 
 The legend stands at the dock's right: "Shallow water" with its swatch with no
-field on, else the field's ramp with its unit and a few figures under it,
+field on (Tide's ramp since 2026-11-16), else the field's ramp with its unit and a few figures under it,
 evenly spaced and never touching (src/MapScales.tsx). It names no source, and
 on a phone there is none. Under the chips on the finder's map is the strip of
 hours (2026-11-14). It and the cards share one hour both ways, and with a
@@ -1624,3 +1627,40 @@ its direction, height and period, then under a rule the whole sea; on the
 wave Models row, each model and the blend. It is still the data alone (the
 entry of 2026-11-15 above), and replaces what the label of 2026-11-08 says
 row by row.
+
+**2026-11-16 — Tide is the map's fourth field.** The owner: "On the map view
+we have Wind, Waves and Weather. There should be a fourth option, Tide, and it
+shows the tidal gradient that we've built." The dock's chips are Wind, Waves,
+Weather and Tide, in that order, one at a time as before
+(force5/src/mapField.ts), on the finder's map and the full chart alike. Tide
+is the tidal depth (2026-11-06): the shallows coloured by the water over them
+at the hour shown, the seabed's heights above LAT against the nearest tide
+station's prediction for that hour (behind a weir, the basin's own level), so
+it moves with the tide as the hour moves. Beside the list the hour is the
+cards', which the strip of hours scrubs; on the full chart, the scrub bar's.
+From `FOIL_MIN_ZOOM` in it is the depths themselves; further out, the coast's
+faint glow, with no tide in it. Its chip glows in the shallows' own blue
+(`glow-tide`, the legend's swatch), with the tidal depth's glyph as its icon,
+as About the map draws it.
+
+Its legend is the depth of water at this tide, as a ramp generated from the
+scale the map draws the water with (`depthScale`): the foreshore the tide has
+left ("Dry"), the waterline, then the water from 0 through the step at 1 m,
+where a mast clears the bottom, to 3 m, fading out past 6 m. Out past the
+depths' zoom the ramp gives way to the glow's swatch and "Zoom in for this
+hour's depths", as the other fields' notes stand in for theirs.
+
+None is now the plain map. Tide is a first visit's field, because the owner
+wanted the tidal depth on the finder's map from the start (2026-11-06): the
+map opens as it did, with the shallows glowing, but the chip lit says what
+the blue is, and pressing Tide again (or Escape on the chips) turns it off
+to a dark, plain map with no glow and no legend. A Waves rider where no wave
+frames are listed sees Tide meanwhile. The choice is kept in
+`wingfoil.map.field.v2`, none too; a choice kept before in
+`wingfoil.map.field.v1` is read once, its none (which was the glowing
+shallows) as Tide, and a rider who had Coloured wind on still starts on Wind.
+Under Tide the pills say what they say with none: the wind and the sky. On a
+phone the four chips share the dock's width, each as wide as its word. This
+replaces the map with no field on as the tidal depth and its "Shallow water"
+legend (2026-11-07). The phone app's chart has no field chips (its Layers
+sheet keeps a Tidal depth switch) and is unchanged for now.

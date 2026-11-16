@@ -1123,7 +1123,11 @@
   --color-glow-weather: #e9b200;
   --color-glow-weather-edge: #8f6b00;
   --color-glow-weather-ink: #8f6b00;
-  /* The legend's swatch for the shallows' glow, the map with no field on. */
+  /* Tide's glow is the shallows' own blue, the legend's swatch for them. */
+  --color-glow-tide: #3f9fd0;
+  --color-glow-tide-edge: #1f74a3;
+  --color-glow-tide-ink: #1f74a3;
+  /* The legend's swatch for the shallows' faint glow, Tide zoomed out. */
   --color-legend-shallow: #3f9fd0;
 }
 :root[data-theme="dark"] {
@@ -1133,4 +1137,6 @@
   --color-glow-waves-ink: #3cc3c9;
   --color-glow-weather-edge: #e9b200b3;
   --color-glow-weather-ink: #f2c21c;
+  --color-glow-tide-edge: #3f9fd0b3;
+  --color-glow-tide-ink: #5cb8e6;
 }

@@ -173,7 +173,8 @@ test("at the whole country, Dublin close in and Sligo: a pill for each card in v
   await expect(page.locator(".spot-marker.lt-bead")).toHaveCount(
     149 - whole.pills.length,
   );
-  // With no field on: the wind's arrow, the wind and its unit, and the sky.
+  // With Tide on, a first visit's: the wind's arrow, the wind and its unit,
+  // and the sky.
   for (const pill of await pills(page).all()) {
     await expect(pill.locator(".lt-kn")).toHaveText(/^\d+$/);
     await expect(pill.locator(".lt-u")).toHaveText("kn");
@@ -205,7 +206,8 @@ test("the pills say what the map shows: the wind and the sky, then Wind, Waves o
   await country(page);
   await pillsAreTheCardsInView(page);
   const first = pills(page).first();
-  // None on: the arrow, the wind with its unit, and the sky after it.
+  // Tide on, a first visit's: the arrow, the wind with its unit, and the sky
+  // after it, as with none.
   await expect(first.locator(".lt-u")).toHaveText("kn");
   await expect(first.locator(".lt-pill > :last-child")).toHaveClass(/lt-sky/);
   // Wind: the arrow, the wind with its unit and the gust raised, no sky.
@@ -240,9 +242,10 @@ test("the pills say what the map shows: the wind and the sky, then Wind, Waves o
   await expect(first.locator(".lt-pa")).toHaveCount(0);
   await rest(page);
   await pillsAreTheCardsInView(page);
-  // Off again: the wind and the sky.
+  // Off again, the plain map: the wind and the sky.
   await page.locator('[data-map-field="weather"]').click();
   await expect(first.locator(".lt-u")).toHaveText("kn");
+  await expect(first.locator(".lt-pill > :last-child")).toHaveClass(/lt-sky/);
 });
 
 test("the pills follow a scroll of the list once it has rested, never in the middle of it", async ({

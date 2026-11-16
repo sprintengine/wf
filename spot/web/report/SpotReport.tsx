@@ -141,7 +141,7 @@ import {
   type WavePartHour,
 } from "../../../force5/src/waveBlend";
 import { PhotoLoupe } from "./PhotoLoupe";
-import { sliderHours, weekStart } from "./slider";
+import { sliderHours, sliderIndex, weekStart } from "./slider";
 import { TimeSlider } from "./TimeSlider";
 import {
   besideMark,
@@ -217,9 +217,6 @@ const styles = tv({
       "sticky top-16 z-panel -mx-4 flex flex-col gap-2 border-0 border-b border-line bg-ground px-4 pt-2 pb-2.5",
       "max-wide:top-14 wide:-mx-6 wide:px-6",
     ],
-    // The section's name, for a screen reader, and where a jump to the week
-    // lands: under the site's bar.
-    weekTitleHidden: "sr-only scroll-mt-16 max-wide:scroll-mt-14",
     // The outline round the days the graph has on screen, laid over the
     // strip and slid along it as the graph scrolls (`paintDayWindow`).
     dayWindow:
@@ -752,6 +749,17 @@ export function SpotReport({
       }),
     [rows, days, now, dark],
   );
+  // The slider's tag says the hour its needle is on: Now where that hour
+  // holds now, else its time (with the night hidden, now's night stands on
+  // the next first light, and says so).
+  const sliderHour = sliderWeek[sliderIndex(sliderWeek, heroAt)];
+  const sliderWords =
+    heroAtNow &&
+    (!sliderHour ||
+      (sliderHour.time <= now &&
+        now < sliderHour.time + sliderHour.step * HOUR))
+      ? "Now"
+      : `${dayNames(dublinDate(sliderHour?.time ?? heroAt), sliderHour?.time ?? heroAt).short} ${clock(sliderHour?.time ?? heroAt)}`;
   /** An hour put under the slider's needle: the page goes to it. */
   const pickHour = (time: number) => {
     setFocus(time);
@@ -773,7 +781,11 @@ export function SpotReport({
       aria-label="View"
       size="sm"
       value={view}
-      onChange={(v) => setView(v)}
+      onChange={(v) => {
+        setView(v);
+        // A graph drawn again does not replay the slider's last move.
+        setFollow(null);
+      }}
       options={[
         { value: "graph", label: "Graph" },
         { value: "table", label: "Table" },
@@ -792,8 +804,15 @@ export function SpotReport({
       setScrollTo({ day, at: Date.now(), time });
     }
     setFocus(time);
+    setFollow(null);
     setView("graph");
-    document.getElementById("the-week")?.scrollIntoView({ behavior: "smooth" });
+    // The Wind graph, under the pinned days (the page's scroll padding), once
+    // it is drawn.
+    requestAnimationFrame(() =>
+      document
+        .querySelector('[data-week-section="wind"]')
+        ?.scrollIntoView({ behavior: "smooth" }),
+    );
   };
   // A day pressed in the strip, or today: the week lets go of a held hour.
   const [backToNow, setBackToNow] = useState(0);
@@ -889,7 +908,7 @@ export function SpotReport({
             <NearbyStrip here={point ? null : spot} readings={nearby} />
           )}
           <section className="pt-2" aria-labelledby="the-week">
-            <h2 className={s.weekTitleHidden()} id="the-week">
+            <h2 className="sr-only" id="the-week">
               The days ahead
             </h2>
             <div className={s.whenBar()} ref={setWhenBar} data-when-bar>
@@ -923,11 +942,7 @@ export function SpotReport({
               <TimeSlider
                 hours={sliderWeek}
                 time={heroAt}
-                words={
-                  heroAtNow
-                    ? "Now"
-                    : `${dayNames(dublinDate(heroAt), heroAt).short} ${clock(heroAt)}`
-                }
+                words={sliderWords}
                 onPick={pickHour}
                 onNow={pickNow}
               />
@@ -1471,6 +1486,9 @@ interface WeekMove {
   /** The hour to hold, or null to stand at now. */
   time: number | null;
 }
+
+/** How long a scroll the slider asked for is its own, not the pointer's. */
+const FOLLOW_MS = 150;
 
 /** An hour picked on the time slider (null: now), when it was picked. */
 interface HourMove {
@@ -2147,6 +2165,8 @@ function Graph({
     const band = bandAt(at, y - svg.getBoundingClientRect().top);
     return band === null ? null : placeBand(at, row, band);
   };
+  // When the time slider last scrolled the hours (`follow`).
+  const followed = useRef(-Infinity);
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     // A section scrolled a moment after the other last moved is following
@@ -2177,7 +2197,12 @@ function Graph({
       setCard((was) =>
         was ? (placeBand(was.section as Section, row, was.band) ?? was) : was,
       );
-    } else if (pointer.current) {
+    } else if (
+      pointer.current &&
+      // A scroll the slider asked for keeps the slider's hour, not the one
+      // that comes under a pointer resting on the graph.
+      performance.now() - followed.current > FOLLOW_MS
+    ) {
       const row =
         pinned ??
         rowAtX(
@@ -2370,6 +2395,7 @@ function Graph({
     if (!follow || !el) return;
     driver.current = el;
     handMoved.current = false;
+    followed.current = performance.now();
     if (follow.time === null) {
       release();
       const left = phone ? leftFor(X(now)) : Math.max(0, X(now) - px);

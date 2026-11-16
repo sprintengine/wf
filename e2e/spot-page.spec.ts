@@ -252,6 +252,14 @@ test("the days and the time slider stay pinned under the site's bar as the page 
   // The Waves graph's day names hold under the pinned bar, not behind it.
   const names = (await page.locator('[data-day-heads="waves"]').boundingBox())!;
   expect(names.y).toBeGreaterThanOrEqual(pinned.y + pinned.height - 1);
+  // The next stars, from the table: the Wind graph comes up just under the bar.
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.getByRole("button", { name: "Table", exact: true }).click();
+  await page.locator("button[data-next-stars]").click();
+  const wind = page.locator('[data-week-section="wind"]');
+  await expect
+    .poll(async () => Math.round((await wind.boundingBox())!.y))
+    .toBe(Math.round(pinned.y + pinned.height));
 });
 
 test("the time slider moves the page's hour, and an hour chosen anywhere else moves it", async ({

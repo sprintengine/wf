@@ -132,6 +132,9 @@ export function TimeSlider({
   // is moving it (then it settles there once they stop).
   useLayoutEffect(() => {
     if (dragging || performance.now() - moved.current < SETTLE_MS) return;
+    // The page moved the hour: the next one the rider puts under the needle
+    // is theirs, whatever they last picked.
+    picked.current = null;
     const was = under();
     if (was === at) return;
     goTo(at, was >= 0 && Math.abs(at - was) > GLIDE_HOURS);

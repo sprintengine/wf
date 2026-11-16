@@ -40,7 +40,8 @@ HARMONIE, then ECMWF, and the published blend of the lights
 (`src/spotBlend.ts`) stays the default's: a rider on the blend has their hours
 worked out from the models, as any other choice does. The forecast server
 gives the blend beside every hour's headline (`blend_kn`), which is what the
-spot page's Models row draws.
+spot page's Models row draws; for a rider on the blend, the Wind row's bars
+are its wind, each model's own a dot on them.
 
 The rule is `force5/src/lead.ts` (`starsFromAt`, `leadFor`, `pickModel`,
 `leadModels`), shared by every surface that rates:

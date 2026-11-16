@@ -4,6 +4,7 @@ import { WAVE_BLEND } from "../../../force5/src/waves";
 import type { WaveBlendHour } from "../../../force5/src/waveBlend";
 import {
   partOf,
+  swellShare,
   waveOrder,
   waveWeek,
   windBlend,
@@ -314,5 +315,35 @@ describe("waveWeek", () => {
     expect(partOf(week.rows[0], "swell1")?.heightM).toBe(0.8);
     // Past the blend's times, the finest model at each hour stands in.
     expect(week.rows[3]?.lead).toBe("gfs-wave");
+  });
+});
+
+describe("the swell's share of an hour's sea", () => {
+  const sea = (parts: Partial<Record<string, number>>) =>
+    ({
+      parts: Object.fromEntries(
+        Object.entries(parts).map(([key, heightM]) => [
+          key,
+          { heightM, periodS: null, from: null },
+        ]),
+      ),
+    }) as unknown as Parameters<typeof swellShare>[0];
+
+  it("shares the sea out by its trains' energy, the squares of their heights", () => {
+    // 1.2 m of swell and 0.9 m of wind sea: 1.44 against 0.81.
+    expect(swellShare(sea({ swell1: 1.2, windsea: 0.9 }))).toBeCloseTo(
+      1.44 / 2.25,
+    );
+    // Every swell train counts, the one-height swell where there is no first.
+    expect(
+      swellShare(sea({ swell1: 0.6, swell2: 0.8, windsea: 1 })),
+    ).toBeCloseTo(1 / 2);
+    expect(swellShare(sea({ swell: 1, windsea: 1 }))).toBeCloseTo(0.5);
+  });
+
+  it("is all swell or all wind sea where there is only one, and none unsplit", () => {
+    expect(swellShare(sea({ swell1: 1 }))).toBe(1);
+    expect(swellShare(sea({ windsea: 0.4 }))).toBe(0);
+    expect(swellShare(sea({}))).toBeNull();
   });
 });

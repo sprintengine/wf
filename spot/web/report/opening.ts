@@ -1,12 +1,12 @@
 /**
- * The graphs' rows folding away and opening (SpotReport.tsx): how far open
- * each row is, eased from where it is to where it is going, and where each
- * row stands in its section's stack while some are part open. The sums are
- * pure, so they are tested without a page.
+ * The graphs' motion (SpotReport.tsx): how far open each row is, and every
+ * bar, line and scale, eased from where it is to where it is going, and
+ * where each row stands in its section's stack while some are part open.
+ * The sums are pure, so they are tested without a page.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-/** How long a row takes to fold away or open. */
+/** How long a row takes to fold away or open, and a bar to move. */
 export const OPEN_MS = 480;
 
 /** Fast out of the start, settling at the end: a cubic ease-out. */
@@ -68,6 +68,97 @@ const stillWanted = () =>
   matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
+ * What the graphs ease: a number, nothing (null: none to draw), or lists and
+ * records of them. A bar's height, a line's points, a scale's top.
+ */
+export type Eased =
+  number | null | readonly Eased[] | { readonly [key: string]: Eased };
+
+/**
+ * `e` of the way from `from` to `to` (0 is `from`, 1 is `to`): each number
+ * by its place in a list or its key in a record, so a bar keyed by its hour
+ * moves from its own height. What `to` has and `from` has not is `to`'s at
+ * once, as is nothing (null); what `from` has and `to` has not is gone.
+ */
+export function between<T extends Eased>(
+  from: Eased | undefined,
+  to: T,
+  e: number,
+): T {
+  if (e >= 1 || to === null) return to;
+  if (typeof to === "number")
+    return (typeof from === "number" ? from + (to - from) * e : to) as T;
+  if (Array.isArray(to)) {
+    const was: readonly Eased[] = Array.isArray(from) ? from : [];
+    return to.map((v: Eased, i) => between(was[i], v, e)) as unknown as T;
+  }
+  const was = (
+    from !== null && typeof from === "object" && !Array.isArray(from)
+      ? from
+      : {}
+  ) as Record<string, Eased>;
+  const out: Record<string, Eased> = {};
+  for (const key of Object.keys(to))
+    out[key] = between(was[key], (to as Record<string, Eased>)[key], e);
+  return out as T;
+}
+
+/** Whether two eased values are the same, number for number. */
+export function sameEased(a: Eased | undefined, b: Eased | undefined): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || a === undefined || b === undefined)
+    return false;
+  if (typeof a === "number" || typeof b === "number") return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length)
+      return false;
+    return a.every((v: Eased, i) => sameEased(v, b[i]));
+  }
+  const x = a as Record<string, Eased>;
+  const y = b as Record<string, Eased>;
+  const keys = Object.keys(x);
+  return (
+    keys.length === Object.keys(y).length &&
+    keys.every((key) => key in y && sameEased(x[key], y[key]))
+  );
+}
+
+/**
+ * `to`, eased: when it changes, the value returned runs from wherever it had
+ * got to (still moving, or at rest) to the new one over `OPEN_MS`, frame by
+ * frame, and the component that holds it draws each frame. The first value
+ * is drawn as it is, never grown from nothing; a new `to` the same number
+ * for number as the last moves nothing. With reduced motion asked for, at
+ * once. Keep `to` the same object while it means the same (`useMemo`):
+ * that is what says it has not changed.
+ */
+export function useEased<T extends Eased>(to: T): T {
+  const [shown, setShown] = useState<T>(to);
+  const now = useRef(shown);
+  now.current = shown;
+  useEffect(() => {
+    const from = now.current;
+    if (from === to) return;
+    if (sameEased(from, to)) {
+      setShown(to);
+      return;
+    }
+    if (stillWanted() || typeof requestAnimationFrame === "undefined") {
+      setShown(to);
+      return;
+    }
+    const start = performance.now();
+    let frame = requestAnimationFrame(function step(at) {
+      const e = easeOut((at - start) / OPEN_MS);
+      setShown(between(from, to, e));
+      if (e < 1) frame = requestAnimationFrame(step);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [to]);
+  return shown;
+}
+
+/**
  * How far open each row is, 0 shut to 1 open, following `on`: a row switched
  * on opens and one switched off folds, eased over `OPEN_MS`, from wherever it
  * had got to if it was still moving. With reduced motion asked for, at once.
@@ -75,38 +166,14 @@ const stillWanted = () =>
 export function useOpening<K extends string>(
   on: Readonly<Record<K, boolean>>,
 ): Record<K, number> {
-  const target = (rows: Readonly<Record<K, boolean>>) =>
-    Object.fromEntries(
-      Object.entries(rows).map(([key, value]) => [key, value ? 1 : 0]),
-    ) as Record<K, number>;
-  const [open, setOpen] = useState<Record<K, number>>(() => target(on));
-  const now = useRef(open);
-  now.current = open;
   const key = JSON.stringify(on);
-  useEffect(() => {
-    const to = target(on);
-    const from = now.current;
-    const keys = Object.keys(to) as K[];
-    if (keys.every((k) => from[k] === to[k])) return;
-    if (stillWanted() || typeof requestAnimationFrame === "undefined") {
-      setOpen(to);
-      return;
-    }
-    const start = performance.now();
-    let frame = requestAnimationFrame(function step(at) {
-      const e = easeOut((at - start) / OPEN_MS);
-      setOpen(
-        Object.fromEntries(
-          keys.map((k) => [
-            k,
-            (from[k] ?? to[k]) + (to[k] - (from[k] ?? to[k])) * e,
-          ]),
-        ) as Record<K, number>,
-      );
-      if (e < 1) frame = requestAnimationFrame(step);
-    });
-    return () => cancelAnimationFrame(frame);
+  const to = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(on).map(([row, value]) => [row, value ? 1 : 0]),
+      ) as Record<K, number>,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return open;
+    [key],
+  );
+  return useEased(to);
 }

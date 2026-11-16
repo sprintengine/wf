@@ -305,3 +305,16 @@ export function partOf(
       : row.parts[key];
   return part && part.heightM !== null ? part : null;
 }
+
+/**
+ * How much of an hour's sea is swell, 0 to 1, by the energy of its trains
+ * (a height's square, as the heights add: the whole sea is the root of the
+ * squares' sum), the rest the wind sea's; null where the lead model does
+ * not split the sea at the hour.
+ */
+export function swellShare(w: WaveRow): number | null {
+  const energy = (key: PartRow) => (partOf(w, key)?.heightM ?? 0) ** 2;
+  const swell = energy("swell1") + energy("swell2") + energy("swell3");
+  const sea = energy("windsea");
+  return swell + sea > 0 ? swell / (swell + sea) : null;
+}

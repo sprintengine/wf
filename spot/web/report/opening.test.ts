@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { easeOut, stack } from "./opening";
+import { between, easeOut, sameEased, stack } from "./opening";
 
 const BANDS = [
   ["a", 20, 8],
@@ -55,5 +55,39 @@ describe("the ease", () => {
     expect(easeOut(0.5)).toBeGreaterThan(0.5);
     expect(easeOut(-1)).toBe(0);
     expect(easeOut(2)).toBe(1);
+  });
+});
+
+describe("a value part way to the next", () => {
+  it("moves each number by its key or its place", () => {
+    const from = { most: 2, hours: { 10: [12, 20], 11: [8, null] } };
+    const to = { most: 4, hours: { 10: [16, 24], 11: [10, 14] } };
+    expect(between(from, to, 0.5)).toEqual({
+      most: 3,
+      hours: { 10: [14, 22], 11: [9, 14] },
+    });
+    expect(between(from, to, 0)).toEqual({
+      most: 2,
+      hours: { 10: [12, 20], 11: [8, 14] },
+    });
+    expect(between(from, to, 1)).toBe(to);
+  });
+
+  it("brings in at once what was not there, and leaves out what has gone", () => {
+    const from = { 10: 5, 11: 7 };
+    const to = { 11: 9, 12: 3 };
+    expect(between(from, to, 0.5)).toEqual({ 11: 8, 12: 3 });
+    expect(between([1, 2], [3, 4, 5], 0.5)).toEqual([2, 3, 5]);
+    expect(between(4, null, 0.5)).toBeNull();
+  });
+
+  it("knows a value the same, number for number, from one that moved", () => {
+    expect(sameEased({ a: [1, null], b: 2 }, { a: [1, null], b: 2 })).toBe(
+      true,
+    );
+    expect(sameEased({ a: [1, null] }, { a: [1, 0] })).toBe(false);
+    expect(sameEased({ a: 1 }, { a: 1, b: 2 })).toBe(false);
+    expect(sameEased([1, 2], [1, 2, 3])).toBe(false);
+    expect(sameEased(3, 3)).toBe(true);
   });
 });

@@ -1697,4 +1697,3 @@ what is on screen glides to its new place over the same half second. A
 day's width with the night hidden is a whole day's lit hours, so it no
 longer changes with the model. With less motion asked for, the new model is
 drawn at once, still in place.
-

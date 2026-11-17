@@ -13,6 +13,9 @@ export const OPEN_MS = 480;
 export const easeOut = (t: number) =>
   1 - (1 - Math.min(1, Math.max(0, t))) ** 3;
 
+/** `easeOut` as CSS draws it, for what moves by a transform. */
+export const EASE_OUT_CSS = "cubic-bezier(0.33, 1, 0.68, 1)";
+
 /** Each band of a section: its key, its height and the gap under it. */
 export type BandSpec<K extends string> = readonly [K, number, number];
 
@@ -63,7 +66,7 @@ export function stack<K extends string>(
   return { at, open: shown, axis, height: axis + 22 };
 }
 
-const stillWanted = () =>
+export const stillWanted = () =>
   typeof matchMedia !== "undefined" &&
   matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -74,23 +77,38 @@ const stillWanted = () =>
 export type Eased =
   number | null | readonly Eased[] | { readonly [key: string]: Eased };
 
+/** The same shape with every number 0: where a bar grows from or goes to. */
+export function zeroed<T extends Eased>(value: T): T {
+  if (value === null) return value;
+  if (typeof value === "number") return 0 as T;
+  if (Array.isArray(value))
+    return value.map((v: Eased) => zeroed(v)) as unknown as T;
+  const out: Record<string, Eased> = {};
+  for (const [key, v] of Object.entries(value)) out[key] = zeroed(v);
+  return out as T;
+}
+
 /**
  * `e` of the way from `from` to `to` (0 is `from`, 1 is `to`): each number
  * by its place in a list or its key in a record, so a bar keyed by its hour
  * moves from its own height. What `to` has and `from` has not is `to`'s at
  * once, as is nothing (null); what `from` has and `to` has not is gone.
+ * With `grow`, a key of a record that one side has and the other has not
+ * grows from 0 or goes to 0 instead (a bar for an hour one model has and
+ * another has not), the one going kept until the end.
  */
 export function between<T extends Eased>(
   from: Eased | undefined,
   to: T,
   e: number,
+  grow = false,
 ): T {
   if (e >= 1 || to === null) return to;
   if (typeof to === "number")
     return (typeof from === "number" ? from + (to - from) * e : to) as T;
   if (Array.isArray(to)) {
     const was: readonly Eased[] = Array.isArray(from) ? from : [];
-    return to.map((v: Eased, i) => between(was[i], v, e)) as unknown as T;
+    return to.map((v: Eased, i) => between(was[i], v, e, grow)) as unknown as T;
   }
   const was = (
     from !== null && typeof from === "object" && !Array.isArray(from)
@@ -98,8 +116,18 @@ export function between<T extends Eased>(
       : {}
   ) as Record<string, Eased>;
   const out: Record<string, Eased> = {};
-  for (const key of Object.keys(to))
-    out[key] = between(was[key], (to as Record<string, Eased>)[key], e);
+  const goal = to as Record<string, Eased>;
+  for (const key of Object.keys(goal))
+    out[key] = between(
+      grow && !(key in was) ? zeroed(goal[key]) : was[key],
+      goal[key],
+      e,
+      grow,
+    );
+  if (grow)
+    for (const key of Object.keys(was))
+      if (!(key in goal))
+        out[key] = between(was[key], zeroed(was[key]), e, grow);
   return out as T;
 }
 
@@ -130,16 +158,19 @@ export function sameEased(a: Eased | undefined, b: Eased | undefined): boolean {
  * is drawn as it is, never grown from nothing; a new `to` the same number
  * for number as the last moves nothing. With reduced motion asked for, at
  * once. Keep `to` the same object while it means the same (`useMemo`):
- * that is what says it has not changed.
+ * that is what says it has not changed. `grow` is `between`'s: what comes
+ * grows from 0 and what goes shrinks to it.
  */
-export function useEased<T extends Eased>(to: T): T {
+export function useEased<T extends Eased>(to: T, grow = false): T {
   const [shown, setShown] = useState<T>(to);
   const now = useRef(shown);
   now.current = shown;
   useEffect(() => {
     const from = now.current;
     if (from === to) return;
-    if (sameEased(from, to)) {
+    // Nothing to move (the same numbers, or only some come and go at once):
+    // the new value, without drawing every frame of an ease for it.
+    if (sameEased(from, to) || sameEased(between(from, to, 0, grow), to)) {
       setShown(to);
       return;
     }
@@ -147,13 +178,19 @@ export function useEased<T extends Eased>(to: T): T {
       setShown(to);
       return;
     }
-    const start = performance.now();
-    let frame = requestAnimationFrame(function step(at) {
+    // The clock starts on the first frame after the change, not when it was
+    // asked: a slow phone can take longer than the whole ease to draw the
+    // change itself, and would then skip straight to the end.
+    let start = -1;
+    let frame = requestAnimationFrame(function step() {
+      const at = performance.now();
+      if (start < 0) start = at;
       const e = easeOut((at - start) / OPEN_MS);
-      setShown(between(from, to, e));
+      setShown(between(from, to, e, grow));
       if (e < 1) frame = requestAnimationFrame(step);
     });
     return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [to]);
   return shown;
 }

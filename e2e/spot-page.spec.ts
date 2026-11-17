@@ -228,7 +228,7 @@ test("a click holds the hour until it is let go, and the strip follows the hour"
   expect(lefts.some((left) => Math.abs(left - frame!.x) < 1)).toBe(true);
 });
 
-test("the days and the time slider stay pinned under the site's bar as the page scrolls", async ({
+test("the days stay pinned under the site's bar as the page scrolls, with no time slider", async ({
   page,
 }) => {
   await withTides(page);
@@ -238,10 +238,12 @@ test("the days and the time slider stay pinned under the site's bar as the page 
   const bar = page.locator("[data-when-bar]");
   const top = page.locator("[data-top-bar]");
   await expect(bar.locator("[data-day-card]").first()).toBeVisible();
-  await expect(bar.locator("[data-time-slider]")).toBeVisible();
-  // Down to the Waves: the site's bar at the top, the days and the hour under it.
+  // The ruler of hours that once sat under the days is gone (2026-11-16).
+  await expect(page.locator("[data-time-slider]")).toHaveCount(0);
+  await expect(page.getByRole("slider", { name: /^Hour/ })).toHaveCount(0);
+  // Down to the Waves: the site's bar at the top, the days under it.
   await page.locator('[data-week-section="waves"]').evaluate((el) =>
-    // Just under the days and the slider pinned at the top.
+    // Just under the days pinned at the top.
     scrollTo(
       0,
       scrollY +
@@ -258,7 +260,7 @@ test("the days and the time slider stay pinned under the site's bar as the page 
   expect(names.y).toBeGreaterThanOrEqual(pinned.y + pinned.height - 1);
 });
 
-test("the time slider moves the page's hour, and an hour chosen anywhere else moves it", async ({
+test("a day card or the pointer on the graph moves the page's hour, the days and the cards with it", async ({
   page,
 }) => {
   await withPictures(page);
@@ -266,64 +268,33 @@ test("the time slider moves the page's hour, and an hour chosen anywhere else mo
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
   await expect(page.locator("[data-graph-svg]")).toBeVisible();
-  const slider = page.getByRole("slider", { name: /^Hour/ });
-  const sliderTag = page.locator("[data-slider-tag]");
   const cursor = page.locator('[data-cursor-tag="wind"] [data-cursor-hour]');
-  await expect(sliderTag).toHaveText("Now");
-  // The hours are a tick each, pink where they have stars, the nights shaded.
-  await expect(
-    page.locator("[data-slider-hour][data-stars]").first(),
-  ).toBeAttached();
-  await expect(
-    page.locator("[data-slider-hour][data-night]").first(),
-  ).toBeAttached();
-  // The keys step the hour: the graph and the days follow.
-  await slider.focus();
-  await page.keyboard.press("Shift+ArrowRight");
-  await expect(sliderTag).toHaveText(/^Mon \d{2}:00$/);
-  const monday = await sliderTag.textContent();
-  await expect(cursor).toHaveText(monday!);
-  await expect(page.locator('[data-day-card="2026-09-14"]')).toHaveAttribute(
+  const tide = await page.locator("[data-card-tide]").textContent();
+  // A day card chosen: the graph goes to its midday, and the card is on.
+  await page.locator('[data-day-card="2026-09-15"]').click();
+  await expect(cursor).toHaveText(/^Tue \d{2}:00$/);
+  await expect(page.locator('[data-day-card="2026-09-15"]')).toHaveAttribute(
     "aria-pressed",
     "true",
   );
-  await page.keyboard.press("ArrowRight");
-  await expect(sliderTag).not.toHaveText(monday!);
-  await expect(cursor).toHaveText((await sliderTag.textContent())!);
-  // Home goes back to now.
-  await page.keyboard.press("Home");
-  await expect(sliderTag).toHaveText("Now");
-  // A wheel over it moves the hour on, and the graph keeps it in view.
-  const box = (await slider.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  for (let i = 0; i < 8; i++) await page.mouse.wheel(0, 100);
-  await expect(sliderTag).not.toHaveText("Now");
-  await expect
-    .poll(async () => (await cursor.textContent()) ?? "")
-    .toBe((await sliderTag.textContent()) ?? "");
+  await expect(page.locator("[data-card-tide]")).not.toHaveText(tide!);
   const graph = (await page.locator("[data-spot-graph]").boundingBox())!;
   const tag = (await page.locator('[data-cursor-tag="wind"]').boundingBox())!;
   expect(tag.x).toBeGreaterThan(graph.x);
   expect(tag.x + tag.width).toBeLessThan(graph.x + graph.width);
-  // A mouse drags it: further on, the hour further on.
-  const before = await sliderTag.textContent();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 - 150, box.y + box.height / 2, {
-    steps: 8,
-  });
-  await page.mouse.up();
-  await expect(sliderTag).not.toHaveText(before!);
-  // A day card chosen: the slider goes to its midday.
-  await page.locator('[data-day-card="2026-09-15"]').click();
-  await expect(sliderTag).toHaveText(/^Tue \d{2}:00$/);
-  await expect(cursor).toHaveText((await sliderTag.textContent())!);
-  // The pointer over the graph: the slider says the hour under it.
+  // The pointer over the graph: the hour under it, and its day's card.
   await page.locator("[data-spot-graph]").scrollIntoViewIfNeeded();
   const over = (await page.locator("[data-spot-graph]").boundingBox())!;
   await page.mouse.move(over.x + over.width * 0.7, over.y + over.height * 0.6);
   await expect(cursor).toHaveText(/\d{2}:\d{2}/);
-  await expect(sliderTag).toHaveText((await cursor.textContent())!);
+  // Today's card: back to now, the cards with it.
+  await page.mouse.move(0, 0);
+  await page.locator('[data-day-card="2026-09-13"]').click();
+  await expect(page.locator('[data-day-card="2026-09-13"]')).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.locator("[data-card-tide]")).toHaveText(tide!);
 });
 
 test("the graphs start where the wind does, with no empty hours before it", async ({
@@ -1303,13 +1274,13 @@ test("the next good window takes the page to its best hour, and the cards follow
   expect(best).toBeGreaterThanOrEqual(3);
   const tide = await page.locator("[data-card-tide]").textContent();
   await next.click();
-  // The page's hour goes there, the slider, the days and the cards with it.
-  const sliderTag = page.locator("[data-slider-tag]");
-  await expect(sliderTag).toHaveText(/^\w{3} \d{2}:00$/);
+  // The page's hour goes there, the playhead, the days and the cards with it.
+  const playhead = page.locator('[data-cursor-tag="wind"] [data-cursor-hour]');
+  await expect(playhead).toHaveText(/^\w{3} \d{2}:00$/);
   const [from, to] = (await next.textContent())!
     .match(/\d{2}:00/g)!
     .map((t) => Number(t.slice(0, 2)));
-  const hour = Number((await sliderTag.textContent())!.slice(4, 6));
+  const hour = Number((await playhead.textContent())!.slice(4, 6));
   expect(hour).toBeGreaterThanOrEqual(from);
   expect(hour).toBeLessThan(to || 24);
   await expect(
@@ -1330,18 +1301,14 @@ test("the next good window takes the page to its best hour, and the cards follow
   await expect(page.locator('[data-card-line="weather"]')).toHaveText(
     /^feels -?\d+° · (dry|<?\d+(\.\d)? mm\/h)$/,
   );
-  await expect(page.locator('[data-cursor-tag="wind"]')).toContainText(
-    (await sliderTag.textContent())!,
-  );
   await expectSameWind(page);
   // The tide in the picture is switched on its corner.
   const picture = page.locator("[data-photo-loupe]");
   await picture.getByRole("button", { name: "Low tide" }).click();
   await expect(picture).toHaveAttribute("data-tide", "low");
-  // Now again: the cards with it.
-  await page.getByRole("slider", { name: /^Hour/ }).focus();
-  await page.keyboard.press("Home");
-  await expect(sliderTag).toHaveText("Now");
+  // Now again, from today's card: the cards with it.
+  await page.locator('[data-day-card="2026-09-13"]').click();
+  await expect(playhead).toHaveText("Now");
   await expect(page.locator("[data-card-tide]")).toHaveText(tide!);
 });
 
@@ -1514,24 +1481,65 @@ test("over the graphs, the model tabs and the rows' switches; a row folds away a
 });
 
 /**
- * Every Wind bar's height, frame by frame for `ms`, each by its place along
- * the hours, from the frame after it is asked: the bars as they move.
+ * Every wind model's run but ICON-EU's starting at noon on the sample's day, as
+ * the real runs do start at their own hours: the hours the graph spans then
+ * depend on the model chosen (the blend's and ICON-EU's start earlier).
+ */
+async function withLaterRuns(page: Page) {
+  await page.route(
+    /\/weather\/(harmonie|ecmwf|gfs|arome|arpege|aifs)-\d{10}-[^/]+\/spots\/[^/]+\.json$/,
+    async (route) => {
+      const response = await route.fetch();
+      const square = await response.json();
+      for (const id of Object.keys(square.spotForecasts ?? {}))
+        square.spotForecasts[id] = square.spotForecasts[id].filter(
+          (h: { validTime: string }) => h.validTime >= "2026-09-13T12:00:00Z",
+        );
+      await route.fulfill({ response, json: square });
+    },
+  );
+}
+
+/** One frame of the Wind row: the graph's width, and each hour's bar. */
+interface BarFrame {
+  width: number;
+  /** By the hour's time: where its bar stands on screen, and its height. */
+  bars: Record<string, readonly [x: number, h: number]>;
+}
+
+/**
+ * The Wind row frame by frame for `ms`, from the frame after it is asked:
+ * each bar by its own hour (not by its place, which moves when the hours
+ * the graph spans do), where it stands on the screen inside the graph's
+ * frame, and how tall it is.
  */
 const barsOver = (page: Page, ms: number) =>
   page.evaluate(
     (ms) =>
-      new Promise<Record<string, number>[]>((done) => {
-        const seen: Record<string, number>[] = [];
+      new Promise<BarFrame[]>((done) => {
+        const seen: BarFrame[] = [];
         const start = performance.now();
         const frame = () => {
-          seen.push(
-            Object.fromEntries(
-              [...document.querySelectorAll("[data-wind-bar]")].map((bar) => [
-                bar.getAttribute("x"),
-                Number(bar.getAttribute("height")),
-              ]),
+          const box = document
+            .querySelector("[data-spot-graph]")!
+            .getBoundingClientRect();
+          const bars: Record<string, [number, number]> = {};
+          for (const g of document.querySelectorAll(
+            "[data-wind-bars] [data-bar-hour]",
+          )) {
+            const bar = g.querySelector("[data-wind-bar]");
+            if (!bar) continue;
+            bars[g.getAttribute("data-bar-hour")!] = [
+              bar.getBoundingClientRect().left - box.left,
+              Number(bar.getAttribute("height")),
+            ];
+          }
+          seen.push({
+            width: Number(
+              document.querySelector("[data-graph-svg]")!.getAttribute("width"),
             ),
-          );
+            bars,
+          });
           if (performance.now() - start < ms) requestAnimationFrame(frame);
           else done(seen);
         };
@@ -1540,31 +1548,58 @@ const barsOver = (page: Page, ms: number) =>
     ms,
   );
 
-/** How many frames found a bar on its way: neither where it was nor where it went. */
-const between = (frames: Record<string, number>[]) => {
+/**
+ * What a model chosen did to the bars on screen (`inView`, the graph's
+ * width): the hours both models have, how far any of them moved across the
+ * screen in all and at most in one frame, how many frames found a bar's
+ * height on its way (neither where it was nor where it went), and the hours
+ * that came in, each its heights in turn.
+ */
+const eased = (frames: BarFrame[], inView: number) => {
   const [first, last] = [frames[0], frames.at(-1)!];
-  const moved = Object.keys(last).filter(
-    (x) => first[x] !== undefined && Math.abs(first[x] - last[x]) > 2,
+  const shared = Object.keys(first.bars).filter(
+    (t) => last.bars[t] && first.bars[t][0] >= 0 && first.bars[t][0] < inView,
+  );
+  let moved = 0;
+  let step = 0;
+  for (const t of shared) {
+    moved = Math.max(moved, Math.abs(last.bars[t][0] - first.bars[t][0]));
+    frames.forEach((f, i) => {
+      const was = frames[i - 1]?.bars[t];
+      if (was && f.bars[t])
+        step = Math.max(step, Math.abs(f.bars[t][0] - was[0]));
+    });
+  }
+  const grew = shared.filter(
+    (t) => Math.abs(first.bars[t][1] - last.bars[t][1]) > 2,
   );
   return {
-    moved: moved.length,
+    widths: [first.width, last.width],
+    shared: shared.length,
+    grew: grew.length,
+    moved,
+    step,
     between: frames.filter((f) =>
-      moved.some(
-        (x) =>
-          f[x] !== undefined &&
-          Math.abs(f[x] - first[x]) > 0.5 &&
-          Math.abs(f[x] - last[x]) > 0.5,
+      grew.some(
+        (t) =>
+          f.bars[t] &&
+          Math.abs(f.bars[t][1] - first.bars[t][1]) > 0.5 &&
+          Math.abs(f.bars[t][1] - last.bars[t][1]) > 0.5,
       ),
     ).length,
+    came: Object.keys(last.bars)
+      .filter((t) => !first.bars[t])
+      .map((t) => frames.flatMap((f) => (f.bars[t] ? [f.bars[t][1]] : []))),
   };
 };
 
-test("the wind is a bar an hour, pink where it has stars; on the blend each model's dot, and a new model eases in", async ({
+test("the wind is a bar an hour, pink where it has stars; on the blend each model's dot, and a new model eases in where the hours move", async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await withWaves(page);
+  await withLaterRuns(page);
   await page.goto("/spot/brandon");
   await expect(heading(page)).toBeVisible({ timeout: 30000 });
   const svg = page.locator("[data-graph-svg]");
@@ -1595,16 +1630,29 @@ test("the wind is a bar an hour, pink where it has stars; on the blend each mode
   await expect(svg.locator("[data-model-dot]")).toHaveCount(0);
 
   // The blend: each model's own wind a dot on the bar, and every bar eases
-  // from where it stood to the blend's, not drawn again from nothing.
-  await page.locator('[data-week-section="wind"]').scrollIntoViewIfNeeded();
+  // from where it stood to the blend's, not drawn again from nothing. The
+  // blend starts its hours earlier than HARMONIE does, so the graph spans
+  // more of them: the hours on screen stay where they are, their bars
+  // easing, and the hours put on its start grow from the foot.
+  const graph = page.locator("[data-spot-graph]");
+  await graph.scrollIntoViewIfNeeded();
+  const inView = await graph.evaluate((el) => el.clientWidth);
   const models = page
     .locator('[data-graph-tabs="wind"]')
     .getByRole("group", { name: "Model" });
   const moving = barsOver(page, 1500);
   await models.getByRole("button", { name: "Blend" }).click();
-  const blend = between(await moving);
-  expect(blend.moved).toBeGreaterThan(5);
+  const blend = eased(await moving, inView);
+  expect(blend.widths[1]).toBeGreaterThan(blend.widths[0]);
+  expect(blend.shared).toBeGreaterThan(20);
+  expect(blend.moved).toBeLessThanOrEqual(1);
+  expect(blend.grew).toBeGreaterThan(5);
   expect(blend.between).toBeGreaterThan(3);
+  expect(blend.came.length).toBeGreaterThan(0);
+  for (const heights of blend.came) {
+    expect(heights[0]).toBeLessThan(heights.at(-1)! - 0.5);
+    expect(new Set(heights.map(Math.round)).size).toBeGreaterThan(2);
+  }
   await expect
     .poll(() => svg.locator("[data-model-dot]").count())
     .toBeGreaterThan(50);
@@ -1613,13 +1661,42 @@ test("the wind is a bar an hour, pink where it has stars; on the blend each mode
       svg.locator(`[data-model-dots="${id}"] circle`).first(),
     ).toBeAttached();
 
-  // With less motion asked for, a model chosen moves the bars at once.
+  // Back to HARMONIE from the graph's first hours, which HARMONIE does not
+  // have: the scroll cannot keep them, so the hours glide to their place
+  // rather than jump there.
+  await page.waitForTimeout(600);
+  await graph.evaluate((el) => {
+    el.scrollLeft = 0;
+  });
+  await page.waitForTimeout(300);
+  const gliding = barsOver(page, 1500);
+  await models.getByRole("button", { name: "HARMONIE" }).click();
+  const back = eased(await gliding, inView);
+  expect(back.widths[1]).toBeLessThan(back.widths[0]);
+  expect(back.moved).toBeGreaterThan(40);
+  expect(back.step).toBeLessThan(back.moved / 2);
+
+  // With less motion asked for, a model chosen moves the bars at once: the
+  // blend's hours, put on the graph's start, keep those on screen in place,
+  // and back to HARMONIE from the first hours they jump in one frame.
   await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.waitForTimeout(600);
   const still = barsOver(page, 1500);
-  await models.getByRole("button", { name: "ECMWF" }).click();
-  const ecmwf = between(await still);
-  expect(ecmwf.moved).toBeGreaterThan(5);
-  expect(ecmwf.between).toBe(0);
+  await models.getByRole("button", { name: "Blend" }).click();
+  const atOnce = eased(await still, inView);
+  expect(atOnce.widths[1]).toBeGreaterThan(atOnce.widths[0]);
+  expect(atOnce.grew).toBeGreaterThan(5);
+  expect(atOnce.between).toBe(0);
+  expect(atOnce.moved).toBeLessThanOrEqual(1);
+  await graph.evaluate((el) => {
+    el.scrollLeft = 0;
+  });
+  await page.waitForTimeout(300);
+  const jumping = barsOver(page, 1000);
+  await models.getByRole("button", { name: "HARMONIE" }).click();
+  const jumped = eased(await jumping, inView);
+  expect(jumped.moved).toBeGreaterThan(40);
+  expect(jumped.step).toBeGreaterThanOrEqual(jumped.moved - 1);
   await expect(svg.locator("[data-model-dot]")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -1758,6 +1835,59 @@ test.describe("on a phone, the model and the rows", () => {
     await expect(sheet).toBeHidden();
     await expect(wind.locator("[data-band-name]").last()).toHaveText("Current");
   });
+
+  test("a model chosen in the sheet keeps the playhead on its hour, the hours gliding under it", async ({
+    page,
+  }) => {
+    await withTides(page);
+    await withLaterRuns(page);
+    await page.goto("/spot/brandon");
+    await expect(heading(page)).toBeVisible({ timeout: 30000 });
+    const graph = page.locator("[data-spot-graph]");
+    await graph.scrollIntoViewIfNeeded();
+    const playhead = page.locator(
+      '[data-cursor-tag="wind"] [data-cursor-hour]',
+    );
+    await expect(playhead).toHaveText("Now");
+    const width = Number(
+      await page.locator("[data-graph-svg]").getAttribute("width"),
+    );
+    await page.locator("[data-rows-button]").click();
+    const sheet = page.getByRole("dialog", { name: "Model & rows" });
+    // The playhead's line on screen, frame by frame, as the blend comes in.
+    const lines = page.evaluate(
+      () =>
+        new Promise<number[]>((done) => {
+          const seen: number[] = [];
+          const start = performance.now();
+          const frame = () => {
+            const line = document.querySelector("[data-playhead-line]");
+            if (line) seen.push(line.getBoundingClientRect().left);
+            if (performance.now() - start < 2500) requestAnimationFrame(frame);
+            else done(seen);
+          };
+          requestAnimationFrame(frame);
+        }),
+    );
+    await sheet
+      .getByRole("group", { name: "Model" })
+      .getByRole("button", { name: "Blend" })
+      .click();
+    await sheet.getByRole("button", { name: "Close" }).click();
+    const at = await lines;
+    // The blend's hours start earlier: the graph is wider, the playhead on
+    // the same hour, and the hours under it came to their place smoothly.
+    await expect
+      .poll(async () =>
+        Number(await page.locator("[data-graph-svg]").getAttribute("width")),
+      )
+      .toBeGreaterThan(width);
+    await expect(playhead).toHaveText("Now");
+    const moved = Math.abs(at.at(-1)! - at[0]);
+    const step = Math.max(...at.slice(1).map((x, i) => Math.abs(x - at[i])));
+    expect(moved).toBeGreaterThan(20);
+    expect(step).toBeLessThan(moved / 2);
+  });
 });
 
 test.describe("on a phone, the week graph", () => {
@@ -1798,7 +1928,7 @@ test.describe("on a phone, the week graph", () => {
     // Everything above the graph in, so nothing moves the page but a finger.
     await page.waitForLoadState("networkidle");
     await page.locator('[data-week-section="wind"]').evaluate((el) =>
-      // Just under the days and the slider pinned at the top.
+      // Just under the days pinned at the top.
       scrollTo(
         0,
         scrollY +
@@ -1876,7 +2006,7 @@ test.describe("on a phone, the week graph", () => {
     }
     await page.waitForLoadState("networkidle");
     await page.locator('[data-week-section="wind"]').evaluate((el) =>
-      // Just under the days and the slider pinned at the top.
+      // Just under the days pinned at the top.
       scrollTo(
         0,
         scrollY +
@@ -1902,36 +2032,6 @@ test.describe("on a phone, the week graph", () => {
     await expect
       .poll(async () => (await column.boundingBox())!.x)
       .toBe(right.x);
-  });
-
-  test("a finger swipes the time slider, and the playhead goes with it", async ({
-    page,
-  }) => {
-    await withTides(page);
-    await page.goto("/spot/brandon");
-    await expect(heading(page)).toBeVisible({ timeout: 30000 });
-    await expect(page.locator("[data-graph-svg]")).toBeVisible();
-    const sliderTag = page.locator("[data-slider-tag]");
-    const playhead = page.locator(
-      '[data-cursor-tag="wind"] [data-cursor-hour]',
-    );
-    await expect(sliderTag).toHaveText("Now");
-    await expect(playhead).toHaveText("Now");
-    const box = (await page.locator("[data-slider-track]").boundingBox())!;
-    const y = box.y + box.height / 2;
-    await swipe(page, { x: box.x + 300, y }, { x: box.x + 60, y });
-    await expect(sliderTag).toHaveText(/^\w{3} \d{2}:00$/);
-    // Once it comes to rest, the graph's playhead is on the same hour.
-    const same = async () =>
-      (await sliderTag.textContent()) === (await playhead.textContent());
-    await expect.poll(same).toBe(true);
-    const swiped = await sliderTag.textContent();
-    // The graph moved along: the slider follows it.
-    await page
-      .locator("[data-spot-graph]")
-      .evaluate((el) => (el.scrollLeft += 300));
-    await expect(sliderTag).not.toHaveText(swiped!);
-    await expect.poll(same).toBe(true);
   });
 
   test("a finger reads the hour at the playhead, and a tap asks a row for its label", async ({

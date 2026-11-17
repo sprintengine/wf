@@ -19,7 +19,7 @@ const styles = tv({
     // The same edge as the bar's, so the wordmark and the page line up.
     page: "flex w-full flex-1 flex-col px-safe-4 wide:px-safe-6",
     // On a spot's report the bar stays at the top of the screen, and the
-    // report's day cards and time slider pin under it.
+    // report's day cards pin under it.
     pinned: "sticky top-0",
   },
 });

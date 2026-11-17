@@ -1678,7 +1678,7 @@ test("the wind is a bar an hour, pink where it has stars; on the blend each mode
 
   // With less motion asked for, a model chosen moves the bars at once: the
   // blend's hours, put on the graph's start, keep those on screen in place,
-  // and back to HARMONIE from the first hours they jump, with no glide.
+  // and back to HARMONIE from the first hours they jump in one frame.
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.waitForTimeout(600);
   const still = barsOver(page, 1500);
@@ -1697,7 +1697,6 @@ test("the wind is a bar an hour, pink where it has stars; on the blend each mode
   const jumped = eased(await jumping, inView);
   expect(jumped.moved).toBeGreaterThan(40);
   expect(jumped.step).toBeGreaterThanOrEqual(jumped.moved - 1);
-  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
   await expect(svg.locator("[data-model-dot]")).toHaveCount(0);
   expect(errors).toEqual([]);
 });

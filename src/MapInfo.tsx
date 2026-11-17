@@ -580,7 +580,7 @@ const SYMBOLS: readonly [ReactNode, string, string][] = [
   [
     <TidalDepthGlyph size={32} />,
     "A drying height",
-    "The map with no field on",
+    "The map\u2019s Tide chip",
   ],
   [<CurrentsGlyph size={32} />, "A flood stream", "Layers: Currents"],
   [<SatelliteGlyph size={32} />, "A photograph inset", "Layers: Satellite"],

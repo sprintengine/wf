@@ -37,10 +37,10 @@ function trackArchives(page: Page) {
 
 async function open(page: Page) {
   trackArchives(page);
-  // No field over the image: the plain map, whose tidal depth is the same in
-  // every photograph here, as the hour never changes between them.
+  // Tide over the image, whose tidal depth is the same in every photograph
+  // here, as the hour never changes between them.
   await page.addInitScript((key) => {
-    if (!localStorage.getItem(key)) localStorage.setItem(key, "none");
+    if (!localStorage.getItem(key)) localStorage.setItem(key, "tide");
   }, FIELD_KEY);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/?spot=kilcrea");
@@ -215,7 +215,7 @@ test("the satellite image draws at high and at low tide in the Malahide estuary,
   expect(stored.foil).toBeUndefined();
   expect(
     await page.evaluate((key) => localStorage.getItem(key), FIELD_KEY),
-  ).toBe("none");
+  ).toBe("tide");
   await page.reload();
   await expect(page.locator("[data-satellite='low']")).toHaveCount(1, {
     timeout: 30000,

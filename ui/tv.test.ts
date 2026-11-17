@@ -431,7 +431,7 @@ const contrast = (a: number[], b: number[]) => {
   return (hi + 0.05) / (lo + 0.05);
 };
 
-const GLOWS = ["wind", "waves", "weather"] as const;
+const GLOWS = ["wind", "waves", "weather", "tide"] as const;
 const THEMES = ["light", "dark"] as const;
 
 describe("ui/Chip.tsx: the lit chip", () => {
@@ -508,6 +508,12 @@ describe("ui/Chip.tsx: the lit chip", () => {
       }
     },
   );
+
+  it("the tide's glow is the shallows' own blue, the legend's swatch", () => {
+    expect(themeColour("glow-tide", "light")).toBe(
+      themeColour("legend-shallow", "light"),
+    );
+  });
 
   it("the legend's shallows swatch is a theme colour", () => {
     expect(themeColour("legend-shallow", "light")).toMatch(/^#[0-9a-f]{6}$/);

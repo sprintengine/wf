@@ -44,6 +44,21 @@ async function openMap(page: Page) {
     .toBeGreaterThan(0);
 }
 
+test("on the narrowest phone the four chips still fit the dock, their words without icons", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await openMap(page);
+  const chips = foot(page).locator("[data-map-field]");
+  await expect(chips).toHaveCount(4, { timeout: 20000 });
+  const dockBox = (await foot(page).locator(".map-dock").boundingBox())!;
+  for (const chip of await chips.all()) {
+    const box = (await chip.boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(dockBox.x + dockBox.width);
+    await expect(chip.locator("svg")).toBeHidden();
+  }
+});
+
 test("the map opens first, then the list, which has no dock", async ({
   page,
 }) => {
@@ -63,7 +78,19 @@ test("the map opens first, then the list, which has no dock", async ({
     0,
   );
   const chips = foot(page).locator("[data-map-field]");
-  expect(await chips.count()).toBeGreaterThanOrEqual(2);
+  // Wind, Waves (once the page is idle), Weather and Tide, Tide on at first,
+  // every one inside the dock and none cut short.
+  await expect(chips).toHaveCount(4, { timeout: 20000 });
+  await expect(chips.last()).toHaveAttribute("aria-pressed", "true");
+  const dockBox = (await foot(page).locator(".map-dock").boundingBox())!;
+  for (const chip of await chips.all()) {
+    const box = (await chip.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(dockBox.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(dockBox.x + dockBox.width);
+    expect(await chip.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+      true,
+    );
+  }
   const chipBox = (await chips.first().boundingBox())!;
   const trackBox = (await foot(page)
     .locator("[data-hour-track]")

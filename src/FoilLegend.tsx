@@ -10,8 +10,8 @@ import {
  * The key to the tidal-depth layer, in the map's information dialog
  * (src/MapInfo.tsx) rather than over the chart: the three colours, the tide
  * and the hour they are drawn for, a tapped point's water, and what the
- * picture cannot know. With the layer off, the colours and where to turn it
- * on.
+ * picture cannot know. With the layer off (another field, or none, on the
+ * map), the colours and where to turn it on: the Tide chip.
  */
 export default function FoilLegend({
   on,
@@ -48,8 +48,7 @@ export default function FoilLegend({
     <div className="foil-key">
       {!on ? (
         <p className="foil-at">
-          Off while Wind or Weather colours the map. Turn that chip off to see
-          the shallows.
+          Off. Turn it on with the map&rsquo;s Tide chip.
         </p>
       ) : far ? (
         <p className="foil-at" data-foil-far>

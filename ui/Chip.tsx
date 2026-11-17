@@ -55,6 +55,10 @@ export const chipStyles = tv({
         base: "aria-pressed:border-glow-weather-edge aria-pressed:bg-glow-weather/20 not-disabled:aria-pressed:hover:bg-glow-weather/30",
         icon: "group-aria-pressed:text-glow-weather-ink",
       },
+      tide: {
+        base: "aria-pressed:border-glow-tide-edge aria-pressed:bg-glow-tide/20 not-disabled:aria-pressed:hover:bg-glow-tide/30",
+        icon: "group-aria-pressed:text-glow-tide-ink",
+      },
     },
   },
   defaultVariants: { variant: "soft", glow: "none" },

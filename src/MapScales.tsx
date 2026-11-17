@@ -1,6 +1,7 @@
 import { PALETTE, windColor } from "../force5/src/weather";
 import { FEET_PER_METRE, type WaveUnits } from "../force5/src/units";
 import type { MapField } from "../force5/src/mapField";
+import { depthScale, foilColours } from "../force5/src/foilDepth";
 import { RAIN_STOPS } from "../force5/src/rain";
 // The stops alone, not the drawing: that is fetched once a field is on.
 import { SKY_NIGHT, SKY_STOPS, WAVE_STOPS } from "../force5/src/fieldStops";
@@ -73,6 +74,40 @@ const skyStops = () =>
       ),
   ].join(", ");
 
+/**
+ * The tidal depth's ramp, from the scale the map draws the water with
+ * (force5/src/foilDepth.ts `depthScale`, its colours the theme's
+ * `--map-foil-*`): the foreshore the tide has left in its first quarter, a
+ * thin waterline, then the water by how deep it is at this tide, each mark
+ * standing over its own depth as the wave height's do. The step at a metre
+ * is where a mast clears the bottom.
+ */
+const TIDE_MARKS = [0, 1, 3, 6] as const;
+const DRY_SHARE = 0.25;
+const LINE_SHARE = 0.02;
+const tideStops = () => {
+  const vars = foilColours({ getPropertyValue: (name) => `var(${name})` });
+  const place = (metres: number) => {
+    const k = TIDE_MARKS.findIndex((mark) => mark >= metres);
+    if (k < 0) return 1;
+    if (k === 0) return DRY_SHARE;
+    const a = TIDE_MARKS[k - 1];
+    const t = (metres - a) / (TIDE_MARKS[k] - a);
+    return (
+      DRY_SHARE + ((1 - DRY_SHARE) * (k - 1 + t)) / (TIDE_MARKS.length - 1)
+    );
+  };
+  return [
+    `${vars.dry} 0%`,
+    `${vars.dry} ${percent(DRY_SHARE - LINE_SHARE)}`,
+    `${vars.line} ${percent(DRY_SHARE - LINE_SHARE)}`,
+    `${vars.line} ${percent(DRY_SHARE)}`,
+    ...depthScale(vars).map(
+      ([metres, colour]) => `${colour} ${percent(place(metres))}`,
+    ),
+  ].join(", ");
+};
+
 /** The rain's ramp, its stops evenly spaced (force5/src/rain.ts). */
 const rainStops = () =>
   RAIN_STOPS.map(
@@ -122,6 +157,18 @@ const LEGENDS: Record<
     spoken:
       "Sky: black at night, grey under cloud, yellow where it is clear. Rain over it in blues, faint at 0.1 millimetres an hour, strong at 8 and over",
   }),
+  // The water over the shallows at this hour's tide, and where it has dried.
+  tide: () => ({
+    ramps: [
+      {
+        unit: "Depth",
+        stops: tideStops(),
+        marks: ["Dry", "0", "1 m", "3 m", "6 m+"],
+      },
+    ],
+    spoken:
+      "Depth of water at this hour's tide: sand where it has dried, pale blue while too shallow for a mast, strong blue from 1 metre, fading out past 6 metres",
+  }),
 };
 
 /** One ramp: its unit before it, the bar, and its marks under it. */
@@ -153,14 +200,15 @@ function RampBar({ ramp }: { ramp: Ramp }) {
 
 /**
  * The map's legend, at the right of its dock (src/MapDock.tsx): what the
- * colour on the map means just now. With no field on, the shallows' glow, as
- * a swatch and its name; with one, its ramp (the sky and the rain beside it,
- * for Weather), each with its unit before it and a few figures under it,
- * evenly spaced so that none touches the next, the first and last held inside
- * its ends. With a `note`, the field draws nothing at this hour and the note
- * says why ("Sky map to Wed"), quietly, in the ramp's place. Never a source's
- * name: that is in About the map. A ramp is generated from the colours the
- * map draws with, never restated.
+ * colour on the map means just now. With no field on, nothing: the map is
+ * plain. With one, its ramp (the sky and the rain beside it, for Weather),
+ * each with its unit before it and a few figures under it, evenly spaced so
+ * that none touches the next, the first and last held inside its ends. With a
+ * `note`, the field draws nothing at this hour and the note says why ("Sky map
+ * to Wed"), quietly, in the ramp's place; for Tide out past the depths' zoom,
+ * the shallows' faint glow as a swatch and the note to zoom in. Never a
+ * source's name: that is in About the map. A ramp is generated from the
+ * colours the map draws with, never restated.
  */
 export default function MapScales({
   field,
@@ -171,16 +219,11 @@ export default function MapScales({
   note?: string | null;
   waveUnits?: WaveUnits;
 }) {
-  if (field === "none")
-    return (
-      <p className="map-legend" data-map-legend="none">
-        <i className="ml-swatch" aria-hidden="true" />
-        Shallow water
-      </p>
-    );
+  if (field === "none") return null;
   if (note)
     return (
       <p className="map-legend" data-map-legend={field} data-map-legend-note>
+        {field === "tide" && <i className="ml-swatch" aria-hidden="true" />}
         {note}
       </p>
     );

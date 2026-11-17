@@ -43,7 +43,7 @@ export interface LayerChoices {
 
 /**
  * The chart a first visit opens on (src/App.tsx): the particles, the
- * shallows' glow (no field on), the names, and no loupe.
+ * tidal depth (the Tide field), the names, and no loupe.
  */
 export const LAYER_DEFAULTS: {
   wind: WindLayers;
@@ -58,8 +58,8 @@ export const LAYER_DEFAULTS: {
     depths: false,
     names: true,
     // The tidal depth and the rain follow the map's one field
-    // (force5/src/mapField.ts): the depth with none on, the rain under
-    // Weather. A first visit has none.
+    // (force5/src/mapField.ts): the depth under Tide, the rain under
+    // Weather. A first visit has Tide.
     foil: true,
     // Off by default: nothing of it is read until a rider asks for it.
     currents: false,
@@ -114,7 +114,7 @@ export interface LayerGroup {
  * The layers a rider switches on the chart, in the groups and the order the
  * layers' rail (src/LayerRail.tsx) shows them: the wind, the sea, the ground
  * under the chart, and the loupe round the chosen spot. What colours the map
- * (the coloured wind, the rain, and with neither the tidal depth's glow) is
+ * (the coloured wind, the rain, the tidal depth) is
  * the dock's field, not the rail's (the ruling of 2026-11-07). Few enough to
  * stand in a column on a phone: the names are always drawn, the depths (their
  * tints, contours, soundings and the land's relief) are one switch under the

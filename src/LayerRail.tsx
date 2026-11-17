@@ -42,8 +42,8 @@ function below(el: Element): Box {
  * the chart stays in view while the layers change. Off is plain; on is filled
  * in ink. A layer's name shows to its left under the pointer and on the keys'
  * focus. The groups are the layers' own (src/layerGroups.tsx), each set apart
- * by space. What colours the map (the coloured wind, the rain, the shallows'
- * glow) is not here: it is the field, chosen in the map's dock with its
+ * by space. What colours the map (the coloured wind, the rain, the tidal
+ * depth) is not here: it is the field, chosen in the map's dock with its
  * legend (src/MapDock.tsx).
  *
  * It is the one way to the layers, on a phone as on a desktop: there is no

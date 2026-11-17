@@ -102,9 +102,9 @@ test("turned on, it draws the hour shown under the chart's ink, and follows the 
     await page.evaluate((key) => localStorage.getItem(key), FIELD_KEY),
   ).toBe("weather");
 
-  // Off again: nothing drawn, and the shallows' legend back.
+  // Off again: nothing drawn, the plain map with no legend.
   await setField(page, "Weather", false);
-  await expect(mapDock(page).locator('[data-map-legend="none"]')).toBeVisible();
+  await expect(mapDock(page).locator("[data-map-legend]")).toHaveCount(0);
   await expect(map(page)).not.toHaveAttribute("data-rain", /./);
   expect(errors).toEqual([]);
 });

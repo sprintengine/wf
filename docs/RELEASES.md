@@ -105,13 +105,16 @@ Two buttons, with you in between. Both are *Actions → Release → Run workflow
      smoke suite runs against `STAGING_SITE_URL`.
      The build carries `_worker.js` (mcp/pages/worker.ts) and `_routes.json`,
      so Pages itself answers the MCP endpoint at `/api/mcp`, reading the same
-     data as the map, and serves the spot pages, `/stars` and `/ai` under
-     their own title and description (mcp/pages/head.ts) for search engines
-     and link previews; every other path stays a static file, with
-     `_headers` (public/) caching the content-hashed `/assets/*` as
-     `immutable` for a year. The build also
-     writes `sitemap.xml` (scripts/build-sitemap.mjs), which `robots.txt`
-     names.
+     data as the map, and serves the map, the spot index, the spot pages,
+     `/stars` and `/ai` under their own title, description and crawlable text
+     (mcp/pages/head.ts, mcp/pages/document.ts). `/spots` redirects to `/`.
+     `/market` and `/community` stay the app and are kept out of search.
+     Every other path stays a static file, with `_headers` (public/) caching
+     the content-hashed `/assets/*` as `immutable` for a year. The build also
+     writes `sitemap.xml` and `llms.txt` (scripts/build-sitemap.mjs), which
+     `robots.txt` names. `www` on the pages the worker serves redirects to
+     the apex; a zone Redirect Rule has to cover the rest of the host
+     (public/_redirects).
    - Then, and only then, what passed is recorded as the prerelease
      `v<date>-rc.<run>` (the workflow run's number), tagged on the commit and
      carrying `images.json`, `site.tar.gz` and `staged.json`: the digests, the

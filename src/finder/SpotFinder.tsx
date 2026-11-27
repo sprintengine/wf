@@ -153,6 +153,9 @@ const styles = tv({
     scroller: "overflow-y-auto overscroll-contain",
     // Room at the foot of a phone's list.
     alone: "pb-24 max-wide:pb-24",
+    // The page's heading and the way to every place, above the day's row.
+    hub: "mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-0.5",
+    hubTitle: "m-0 font-body text-body font-medium text-ink",
     // The list's head, one row: the day, the heart and the filter.
     head: "flex items-center gap-1.5 px-0.5 pb-3",
     filter: "relative shrink-0",
@@ -596,13 +599,17 @@ export default function SpotFinder(props: FinderProps) {
           aria-busy={waiting || placesDue || undefined}
           data-finder-list
         >
-          <h1 className="sr-only" id={headId} data-finder-heading>
+          <div className={s.hub()}>
+            <h1 className={s.hubTitle()}>Wing foil forecast Ireland</h1>
+            <Link href="/spot">All spots</Link>
+          </div>
+          <p className="sr-only" id={headId} data-finder-heading>
             {heart
               ? "Favourites"
               : following
                 ? "Spots in view"
                 : "Spots near you"}
-          </h1>
+          </p>
           <div className={s.head()}>
             <DaySteps dates={dates} day={day} now={now} onDay={chooseDay} />
             <Button

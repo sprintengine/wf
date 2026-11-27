@@ -24,6 +24,13 @@
 #
 # Hosts that do not read this file ignore it: `vite preview` has the fallback
 # built in, and the Caddyfile does it with `try_files {path} /index.html`.
+#
+# www.wingfoil.ie cannot be sent to the apex from this file: Pages matches
+# paths, not hostnames. The worker redirects the HTML pages it serves
+# (mcp/pages/document.ts). A zone Redirect Rule still has to cover the rest
+# of the host (assets, sitemap.xml, llms.txt, og.png): hostname equals
+# www.wingfoil.ie, dynamic redirect to the same path and query on
+# https://wingfoil.ie, status 301.
 /market         /  200
 /market/*       /  200
 /community      /  200

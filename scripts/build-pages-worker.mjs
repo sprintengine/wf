@@ -1,6 +1,7 @@
 /**
  * Bundle mcp/pages/worker.ts into dist/_worker.js, the worker Cloudflare Pages
- * runs for the paths public/_routes.json names (only /api/mcp). Run by
+ * runs for the paths public/_routes.json names (the MCP endpoint, and the
+ * pages that are sent with their own head and crawlable text). Run by
  * `npm run build` after Vite, so the site build the release train ships
  * carries it: staging and production get the same bytes.
  *
@@ -27,4 +28,6 @@ await build({
   legalComments: "none",
   logLevel: "warning",
 });
-console.log(`${join(out, "_worker.js")}: /api/mcp for Cloudflare Pages`);
+console.log(
+  `${join(out, "_worker.js")}: MCP and crawlable pages for Cloudflare Pages`,
+);

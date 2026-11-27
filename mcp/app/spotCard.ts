@@ -75,7 +75,7 @@ function render() {
       <span class="when">${escape(DAY.format(new Date(hour.time)))} · ${clock(hour.time)}</span>
     </header>
     <div class="map${picture ? "" : " is-plain"}" style="--aspect:${picture?.aspect ?? 2}">
-      ${picture ? `<img src="${escape(picture.url)}" alt="" />` : ""}
+      ${picture ? `<img src="${escape(picture.url)}" alt="${escape(`Satellite view of ${data.spot.name}${data.spot.county ? `, Co. ${data.spot.county}` : ""}`)}" />` : ""}
       <canvas aria-hidden="true"></canvas>
       <div class="pin" style="left:${(picture?.x ?? 0.5) * 100}%;top:${(picture?.y ?? 0.5) * 100}%">
         <div class="tag">

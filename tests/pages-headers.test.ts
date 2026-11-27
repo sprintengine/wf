@@ -58,6 +58,8 @@ describe("the Pages headers", () => {
           : path === pattern,
       );
     expect(runsWorker("/assets/index-C5f053Kk.js")).toBe(false);
+    expect(runsWorker("/weather/harmonie.json")).toBe(false);
+    expect(runsWorker("/")).toBe(true);
     expect(routes.include).not.toContain("/*");
   });
 

@@ -26,7 +26,13 @@ import type { Rider } from "../../force5/src/stars";
 import { type RidingSpot, type SpotForecast } from "../../mcp/api/forecast";
 import { favourites } from "../../shared/web/favourites";
 import { onPrefsChange, signedInHint } from "../../shared/web/riderSync";
-import { usePageTitle } from "../../shared/web/usePageTitle";
+import {
+  MISSING_SPOT_TITLE,
+  pointForecastTitle,
+  spotForecastTitle,
+  spotIndexTitle,
+} from "../../site/shared/pageTitle";
+import { useExactTitle } from "../../shared/web/usePageTitle";
 import { Button, Empty, Heading, Row, Rows, Skeleton } from "../../ui";
 import { RING, tv } from "../../ui/tv";
 import { SpotFrame } from "./Frame";
@@ -105,15 +111,20 @@ function SpotRoute({ id }: { id: string | null }) {
   const [rider, changeRider] = useRider();
   const state = useSpotForecast(id, attempt, starsFromAt(rider.starsFrom));
   const s = styles();
+  // The same string the HTML was sent with (mcp/pages/head.ts), so the tab
+  // does not change when the page runs. While the forecast is still loading
+  // the HTML's title stands.
   const title =
     state.kind === "ready"
-      ? `${state.spot.name} wing foil forecast`
+      ? state.point
+        ? pointForecastTitle(state.spot.name)
+        : spotForecastTitle(state.spot.name, state.spot.county)
       : state.kind === "unknown"
-        ? "Spot not found"
-        : id === null
-          ? "Spot forecasts"
-          : "Spot forecast";
-  usePageTitle(title, "Wind map");
+        ? MISSING_SPOT_TITLE
+        : state.kind === "index"
+          ? spotIndexTitle(state.spots.length)
+          : null;
+  useExactTitle(title);
   // The list of satellite pictures is read beside the forecast, not after it.
   useEffect(() => {
     if (id !== null) void loadSpotPictures();

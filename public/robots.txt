@@ -1,6 +1,7 @@
 # Every page is open to crawl. Cloudflare adds its content signals above this
 # file on wingfoil.ie; the sitemap is written by the build
-# (scripts/build-sitemap.mjs).
+# (scripts/build-sitemap.mjs). A short guide for an agent that reads the site
+# is at https://wingfoil.ie/llms.txt, written by the same script.
 User-agent: *
 Allow: /
 

@@ -70,11 +70,11 @@ describe("the Pages worker", () => {
   it("hands every other path to the static files", async () => {
     const { env, asked } = assets({});
     const res = await worker.fetch(
-      new Request("https://wingfoil.test/market"),
+      new Request("https://wingfoil.test/weather/forecast.json"),
       env,
     );
     expect(res.status).toBe(404);
-    expect(asked).toEqual(["/market"]);
+    expect(asked).toEqual(["/weather/forecast.json"]);
   });
 
   it("answers an MCP client's initialize", async () => {
@@ -180,7 +180,7 @@ describe("the pages with heads of their own", () => {
     expect(res.headers.get("content-length")).toBeNull();
     const page = await res.text();
     const title =
-      "Kilcrea — Malahide Estuary wing foil forecast — wingfoil.ie Wind map";
+      "Kilcrea — Malahide Estuary wing foil forecast, Co. Dublin: wind, tide &amp; stars | wingfoil.ie";
     expect(page).toContain(`<title>${title}</title>`);
     /** A tag's content, however index.html has the tag laid out. */
     const tag = (attr: string, key: string) =>
@@ -190,24 +190,44 @@ describe("the pages with heads of their own", () => {
     expect(tag("property", "og:title")).toBe(title);
     expect(tag("name", "twitter:title")).toBe(title);
     expect(page).toMatch(
-      /<meta\s+name="description"\s+content="Hour-by-hour wind, gusts, waves and tide at Kilcrea — Malahide Estuary, Co\. Dublin,/,
+      /<meta\s+name="description"\s+content="Hourly wing foil forecast for Kilcrea — Malahide Estuary, Co\. Dublin: wind, gusts, tide/,
     );
     expect(page).toContain(
       '<link rel="canonical" href="https://wingfoil.ie/spot/kilcrea" />',
     );
     expect(tag("property", "og:url")).toBe("https://wingfoil.ie/spot/kilcrea");
+    expect(tag("property", "og:image")).toBe("https://wingfoil.ie/og.png");
+    expect(tag("name", "twitter:card")).toBe("summary_large_image");
+    expect(tag("name", "twitter:image")).toBe("https://wingfoil.ie/og.png");
     // Nothing of the map's own head is left to say otherwise.
-    expect(page).not.toContain("ready for your AI agent");
-    // The app is the same file: the rewrite touches the head alone.
-    expect(page.slice(page.indexOf("</head>"))).toBe(
-      html.slice(html.indexOf("</head>")),
+    expect(page).not.toContain("spots rated hourly");
+    const ld =
+      /<script type="application\/ld\+json" id="ld-json">([\s\S]*?)<\/script>/.exec(
+        page,
+      )?.[1];
+    const data = JSON.parse(ld ?? "") as {
+      "@graph": { "@type": string; geo?: { latitude: number } }[];
+    };
+    const place = data["@graph"].find((node) => node["@type"] === "Place");
+    expect(place?.geo?.latitude).toBeCloseTo(53.469, 3);
+    expect(
+      data["@graph"].some((node) => node["@type"] === "BreadcrumbList"),
+    ).toBe(true);
+    // The app is still the page. In front of it, text and links a crawler
+    // reads before the script takes that block out.
+    expect(page).toContain('<div id="root"></div>');
+    expect(page).toContain(
+      "<h1>Kilcrea — Malahide Estuary wing foil forecast</h1>",
     );
+    expect(page).toContain('href="/spot/portmarnock"');
+    expect(page).not.toContain('href="/spot/brandon"');
+    expect(page).toContain('document.getElementById("crawl")?.remove()');
   });
 
   it("names /stars and /ai, and answers a HEAD without a body", async () => {
     const { env } = site();
     expect(await (await worker.fetch(get("/stars"), env)).text()).toContain(
-      "<title>How the stars work — wingfoil.ie Wind map</title>",
+      "<title>How the stars work: wing foil ratings for Ireland | wingfoil.ie</title>",
     );
     expect(await (await worker.fetch(get("/ai/"), env)).text()).toContain(
       '<link rel="canonical" href="https://wingfoil.ie/ai" />',
@@ -228,7 +248,7 @@ describe("the pages with heads of their own", () => {
       expect(res.headers.get("x-robots-tag")).toBe("noindex");
       const page = await res.text();
       expect(page).toContain(
-        "<title>53.34° N, 6.15° W wing foil forecast — wingfoil.ie Wind map</title>",
+        "<title>53.34° N, 6.15° W wing foil forecast: wind and waves | wingfoil.ie</title>",
       );
       expect(page).toContain(
         '<link rel="canonical" href="https://wingfoil.ie/spot/@53.3412,-6.1520" />',
@@ -252,13 +272,12 @@ describe("the pages with heads of their own", () => {
       expect(res.headers.get("x-robots-tag")).toBe("noindex");
       expect(res.headers.get("content-type")).toMatch(/text\/html/);
       const page = await res.text();
-      expect(page).toContain(
-        "<title>Spot not found — wingfoil.ie Wind map</title>",
-      );
-      // The app itself, which says what was not found and what was meant.
-      expect(page.slice(page.indexOf("</head>"))).toBe(
-        html.slice(html.indexOf("</head>")),
-      );
+      expect(page).toContain("<title>Spot not found | wingfoil.ie</title>");
+      // The app itself, which says what was not found and what was meant,
+      // and a line a crawler can read without it.
+      expect(page).toContain('<div id="root"></div>');
+      expect(page).toContain("<h1>Spot not found</h1>");
+      expect(page).toContain('href="/spot"');
     }
     const head = await worker.fetch(get("/spot/nowhere", "HEAD"), env);
     expect(head.status).toBe(404);
@@ -268,13 +287,69 @@ describe("the pages with heads of their own", () => {
     expect((await worker.fetch(get("/spot/brandon/"), env)).status).toBe(200);
   });
 
-  it("leaves the list of places, the map and the files to the static site", async () => {
+  it("names the map and the list of places, and leaves a file to the static site", async () => {
     const { env, asked } = site();
-    await worker.fetch(get("/spot"), env);
-    await worker.fetch(get("/spot/"), env);
-    await worker.fetch(get("/"), env);
-    await worker.fetch(get("/spots.json"), env);
-    expect(asked).toEqual(["/spot", "/spot/", "/", "/spots.json"]);
+    const count = JSON.parse(places).length;
+    const home = await (await worker.fetch(get("/"), env)).text();
+    expect(home).toContain(
+      `<title>Wing foil forecast Ireland: ${count} spots rated hourly | wingfoil.ie</title>`,
+    );
+    expect(home).toContain(
+      '<link rel="canonical" href="https://wingfoil.ie/" />',
+    );
+    expect(home).toContain("<h1>Wing foil forecast Ireland</h1>");
+    expect(home).toContain('href="/spot/dollymount"');
+    expect(home).toContain('"@type":"WebSite"');
+    const index = await (await worker.fetch(get("/spot"), env)).text();
+    expect(index).toContain(
+      `<title>Wing foil spots in Ireland: ${count} places by county | wingfoil.ie</title>`,
+    );
+    expect(index).toContain(
+      '<link rel="canonical" href="https://wingfoil.ie/spot" />',
+    );
+    expect(index).toContain("<h1>Wing foil spots in Ireland</h1>");
+    expect(index).toContain("<h2>Dublin</h2>");
+    expect((await worker.fetch(get("/spot/"), env)).status).toBe(200);
+    const file = await worker.fetch(get("/spots.json"), env);
+    expect(file.status).toBe(404);
+    expect(asked).toContain("/spots.json");
+  });
+
+  it("sends /spots to the map, and www to the apex, in one hop", async () => {
+    const { env } = site();
+    const spots = await worker.fetch(get("/spots?tab=near"), env);
+    expect(spots.status).toBe(301);
+    expect(spots.headers.get("location")).toBe(
+      "https://wingfoil.test/?tab=near",
+    );
+    const www = await worker.fetch(
+      new Request("https://www.wingfoil.ie/spot/dollymount"),
+      env,
+    );
+    expect(www.status).toBe(301);
+    expect(www.headers.get("location")).toBe(
+      "https://wingfoil.ie/spot/dollymount",
+    );
+    const both = await worker.fetch(
+      new Request("https://www.wingfoil.ie/spots?tab=near"),
+      env,
+    );
+    expect(both.headers.get("location")).toBe("https://wingfoil.ie/?tab=near");
+  });
+
+  it("keeps the marketplace and the community out of search", async () => {
+    const { env } = site();
+    for (const path of ["/market", "/market/sell", "/community/"]) {
+      const res = await worker.fetch(get(path), env);
+      expect(res.status, path).toBe(200);
+      expect(res.headers.get("x-robots-tag"), path).toBe("noindex");
+      const page = await res.text();
+      expect(page, path).toContain('<meta name="robots" content="noindex" />');
+      expect(page, path).toContain('<div id="root"></div>');
+      expect(page, path).toContain(
+        '<link rel="canonical" href="https://wingfoil.ie/" />',
+      );
+    }
   });
 });
 
@@ -326,8 +401,8 @@ describe("withHead", () => {
     const spots = new Map([
       ["brandon", { id: "brandon", name: "Brandon Bay" }],
     ]);
-    expect(pageHead("/", spots)).toBeNull();
-    expect(pageHead("/spot", spots)).toBeNull();
+    expect(pageHead("/", spots)?.title).toContain("Wing foil forecast Ireland");
+    expect(pageHead("/spot", spots)?.url).toBe("https://wingfoil.ie/spot");
     expect(pageHead("/spot/brandon/extra", spots)).toBeNull();
     expect(pageHead("/market", spots)).toBeNull();
     expect(pageHead("/spot/brandon", spots)?.description).not.toContain("Co.");

@@ -9,16 +9,18 @@
     <meta name="theme-color" content="#0c0c0e" />
     <!-- The theme before the first paint (shared/web/theme.ts THEME_BOOT). -->
     <script>try{var t=localStorage.getItem("wingfoil.theme.v1");if(t!=="light"&&(t!=="system"||matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.dataset.theme="dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-    <!-- The map's head. The spot pages, /stars and /ai are served this file
-         with their own title, description and address in these same tags
-         (mcp/pages/head.ts, written by the Pages worker): keep each tag's
-         name and content in this order, which is what it rewrites. -->
+    <!-- The map's head. The spot index, the spot pages, /stars and /ai are
+         served this file with their own title, description and address in
+         these same tags (mcp/pages/head.ts, written by the Pages worker):
+         keep each tag's name then content in this order, which is what it
+         rewrites. The count is this build's places; the worker writes the
+         list it actually read. -->
     <title>
-      Wing foil forecast for Ireland, ready for your AI agent | wingfoil.ie
+      Wing foil forecast Ireland: 149 spots rated hourly | wingfoil.ie
     </title>
     <meta
       name="description"
-      content="Wind and wave forecasts your AI agent can read: every wing foil spot in Ireland, rated for your weight and wings."
+      content="Hourly wing foil forecast for 149 spots in Ireland: wind, waves, tide and a star rating for each hour."
     />
     <link rel="canonical" href="https://wingfoil.ie/" />
     <meta property="og:type" content="website" />
@@ -26,22 +28,78 @@
     <meta property="og:locale" content="en_IE" />
     <meta
       property="og:title"
-      content="Wing foil forecast for Ireland, ready for your AI agent | wingfoil.ie"
+      content="Wing foil forecast Ireland: 149 spots rated hourly | wingfoil.ie"
     />
     <meta
       property="og:description"
-      content="Wind and wave forecasts your AI agent can read: every wing foil spot in Ireland, rated for your weight and wings."
+      content="Hourly wing foil forecast for 149 spots in Ireland: wind, waves, tide and a star rating for each hour."
     />
     <meta property="og:url" content="https://wingfoil.ie/" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content="https://wingfoil.ie/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="wingfoil.ie, the wing foil forecast for Ireland"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta
       name="twitter:title"
-      content="Wing foil forecast for Ireland, ready for your AI agent | wingfoil.ie"
+      content="Wing foil forecast Ireland: 149 spots rated hourly | wingfoil.ie"
     />
     <meta
       name="twitter:description"
-      content="Wind and wave forecasts your AI agent can read: every wing foil spot in Ireland, rated for your weight and wings."
+      content="Hourly wing foil forecast for 149 spots in Ireland: wind, waves, tide and a star rating for each hour."
     />
+    <meta name="twitter:image" content="https://wingfoil.ie/og.png" />
+    <script type="application/ld+json" id="ld-json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "wingfoil.ie",
+        "url": "https://wingfoil.ie/",
+        "description": "Hourly wing foil forecast for 149 spots in Ireland: wind, waves, tide and a star rating for each hour."
+      }
+    </script>
+    <!-- #crawl is the document a crawler reads. The script under it removes
+         the node as the page is parsed, so the app is not drawn twice. -->
+    <style>
+      #crawl {
+        box-sizing: border-box;
+        min-height: 100vh;
+        margin: 0;
+        padding: 1.75rem 1.25rem 3rem;
+        background: #0c0c0e;
+        color: #f4f4f5;
+        font:
+          1rem/1.5 ui-sans-serif,
+          system-ui,
+          sans-serif;
+      }
+      #crawl a {
+        color: inherit;
+      }
+      #crawl h1 {
+        font-size: 1.6rem;
+        line-height: 1.25;
+        margin: 0 0 0.5rem;
+      }
+      #crawl h2 {
+        font-size: 1.05rem;
+        margin: 1.25rem 0 0.35rem;
+      }
+      #crawl p {
+        margin: 0.4rem 0;
+      }
+      #crawl ol,
+      #crawl ul {
+        margin: 0.25rem 0 0;
+        padding-left: 1.2rem;
+      }
+      #crawl li {
+        margin: 0.15rem 0;
+      }
+    </style>
     <!-- The carbon wing tip: round in a tab, square on a home screen (the
          phone rounds or circles it itself), and in the manifest for Android. -->
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
@@ -51,6 +109,8 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="crawl"></div>
+    <script>document.getElementById("crawl")?.remove()</script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

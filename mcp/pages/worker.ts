@@ -16,21 +16,24 @@
  * (`riding-locations.json`) from the site's own files. A site with no such tag
  * (a development build) reads both from itself.
  *
- * It also answers the spot pages, /stars and /ai, with index.html under their
- * own title and description (head.ts), so a search engine finds each spot by
- * its name; `_routes.json` names those paths too. A spot page for a place
- * that does not exist is index.html too, for the app to say so, but answered
- * 404: `_redirects` alone would have answered it 200.
+ * It also answers the map, the spot index, the spot pages, /stars and /ai
+ * with index.html under their own title, description and a short document a
+ * crawler can read without running the app (head.ts, document.ts).
+ * `_routes.json` names those paths too, and /market, /community (the same
+ * HTML as the map, kept out of search) and /spots (the finder's old address,
+ * redirected to /). A spot page for a place that does not exist is index.html
+ * too, for the app to say so, but answered 404: `_redirects` alone would
+ * have answered it 200.
  */
 import { Hono } from "hono";
 import { httpSource, type ForecastSource } from "../api/httpSource.js";
 import { createMcpRouter } from "../api/server.js";
+import { redirectFor, renderPath } from "./document.js";
 import {
-  MISSING_SPOT,
   isMissingSpot,
   isPagePath,
+  isStubPath,
   pageHead,
-  withHead,
   type HeadSpot,
 } from "./head.js";
 
@@ -110,46 +113,51 @@ function spotsFor(origin: string, env: Env) {
 }
 
 /**
- * A page with a head of its own: index.html, as `_redirects` would have
- * served it, with that head in place of the map's. Its status and headers are
- * index.html's, less a length the rewrite has changed; a spot no place has is
- * a 404, kept out of search.
+ * A page this worker answers itself: index.html, as `_redirects` would have
+ * served it, with that path's head and crawlable body. Its status and headers
+ * are index.html's, less a length the rewrite has changed; a spot no place
+ * has is a 404, and a stub or a point on the water is kept out of search.
  */
-async function withPageHead(
-  request: Request,
-  env: Env,
-): Promise<Response | null> {
+async function withPage(request: Request, env: Env): Promise<Response | null> {
   if (request.method !== "GET" && request.method !== "HEAD") return null;
   const url = new URL(request.url);
-  if (!isPagePath(url.pathname)) return null;
+  if (!isPagePath(url.pathname) && !isStubPath(url.pathname)) return null;
   const spots = await spotsFor(url.origin, env).catch(
     () => new Map<string, HeadSpot>(),
   );
-  const missing = isMissingSpot(url.pathname, spots);
-  const head = missing ? MISSING_SPOT : pageHead(url.pathname, spots);
-  if (!head) return null;
+  // A spot page whose places could not be read stays the static file, and
+  // the next request reads them again. Home and the index do not need a list.
+  if (
+    !isStubPath(url.pathname) &&
+    !isMissingSpot(url.pathname, spots) &&
+    !pageHead(url.pathname, spots)
+  )
+    return null;
   const index = await env.ASSETS.fetch(new URL("/", url.origin).href);
   if (!index.ok) return null;
+  const rendered = renderPath(await index.text(), url.pathname, spots);
+  if (!rendered) return null;
   const headers = new Headers(index.headers);
   headers.delete("content-length");
   headers.delete("etag");
-  if (missing || head.noindex) headers.set("X-Robots-Tag", "noindex");
-  const html = withHead(await index.text(), head);
-  return new Response(request.method === "HEAD" ? null : html, {
-    status: missing ? 404 : index.status,
+  if (rendered.noindex) headers.set("X-Robots-Tag", "noindex");
+  return new Response(request.method === "HEAD" ? null : rendered.html, {
+    status: rendered.status,
     headers,
   });
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const { pathname } = new URL(request.url);
-    if (pathname !== "/api/mcp" && pathname !== "/api/mcp/")
-      return (await withPageHead(request, env)) ?? env.ASSETS.fetch(request);
-    const mcp = await appFor(request, env);
-    // Hono's routes have no trailing slash; a client given one still reaches it.
     const url = new URL(request.url);
-    url.pathname = "/api/mcp";
-    return mcp.fetch(new Request(url, request));
+    if (url.pathname === "/api/mcp" || url.pathname === "/api/mcp/") {
+      const mcp = await appFor(request, env);
+      // Hono's routes have no trailing slash; a client given one still reaches it.
+      url.pathname = "/api/mcp";
+      return mcp.fetch(new Request(url, request));
+    }
+    const dest = redirectFor(url);
+    if (dest) return Response.redirect(dest.toString(), 301);
+    return (await withPage(request, env)) ?? env.ASSETS.fetch(request);
   },
 };

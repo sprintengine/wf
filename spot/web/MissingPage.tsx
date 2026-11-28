@@ -6,12 +6,13 @@
  */
 import { Compass } from "lucide-react";
 import { CHART_HREF, FINDER_HREF } from "../../force5/src/siteNav";
-import { usePageTitle } from "../../shared/web/usePageTitle";
+import { MISSING_PAGE_TITLE } from "../../site/shared/pageTitle";
+import { useExactTitle } from "../../shared/web/usePageTitle";
 import { Button, Empty } from "../../ui";
 import { SpotFrame } from "./Frame";
 
 export default function MissingPage() {
-  usePageTitle("Page not found", "Wind map");
+  useExactTitle(MISSING_PAGE_TITLE);
   return (
     <SpotFrame back={CHART_HREF}>
       <main>

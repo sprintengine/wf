@@ -182,7 +182,11 @@ export function SpotPicture({
           src={shown.urls.high}
           width={shown.width}
           height={shown.height}
-          alt=""
+          alt={
+            spot.county
+              ? `Satellite view of ${spot.name}, Co. ${spot.county}`
+              : `Satellite view of ${spot.name}`
+          }
           loading="lazy"
           decoding="async"
           onError={() => setFailed(true)}

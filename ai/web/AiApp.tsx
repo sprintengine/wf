@@ -20,7 +20,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { SiteMenu } from "../../force5/src/SiteMenu";
 import { CHART_HREF, spotHref } from "../../force5/src/siteNav";
 import { API_ROOT } from "../../shared/web/http";
-import { usePageTitle } from "../../shared/web/usePageTitle";
+import { AI_TITLE } from "../../site/shared/pageTitle";
+import { useExactTitle } from "../../shared/web/usePageTitle";
 import { Button, SpotSearch, TopBar } from "../../ui";
 import { tv } from "../../ui/tv";
 import "./ai.css";
@@ -258,7 +259,7 @@ function Phone() {
 }
 
 export default function AiApp() {
-  usePageTitle("Connect your AI agent to the wing foil forecast", "AI");
+  useExactTitle(AI_TITLE);
   const s = styles();
   const url = mcpUrl(API_ROOT, window.location.origin);
   const device = useMemo(

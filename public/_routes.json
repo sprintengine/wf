@@ -1,14 +1,26 @@
 {
   "version": 1,
-  "description": "Run _worker.js (mcp/pages/worker.ts) for the MCP endpoint, and for the spot pages, /stars and /ai to give each its own title and description (mcp/pages/head.ts); every other path is a static file.",
+  "description": "Run _worker.js (mcp/pages/worker.ts) for the MCP endpoint, and for the map, the spot index, the spot pages, /stars and /ai so each is sent with its own title, description and crawlable text (mcp/pages/document.ts). /spots redirects to /, and /market and /community are the app kept out of search. Every other path is a static file.",
   "include": [
     "/api/mcp",
     "/api/mcp/",
+    "/",
+    "/spot",
+    "/spot/",
     "/spot/*",
     "/stars",
     "/stars/",
     "/ai",
-    "/ai/"
+    "/ai/",
+    "/spots",
+    "/spots/",
+    "/spots/*",
+    "/market",
+    "/market/",
+    "/market/*",
+    "/community",
+    "/community/",
+    "/community/*"
   ],
   "exclude": []
 }

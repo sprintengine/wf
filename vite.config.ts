@@ -10,13 +10,8 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, type Connect, type Plugin, type Rollup } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import {
-  MISSING_PAGE,
-  MISSING_SPOT,
-  isMissingSpot,
-  withHead,
-  type HeadSpot,
-} from "./mcp/pages/head";
+import { redirectFor, renderMissing, renderPath } from "./mcp/pages/document";
+import type { HeadSpot } from "./mcp/pages/head";
 
 /**
  * The e2e build is a site of its own, served from a scratch tree.
@@ -215,47 +210,51 @@ function staticData(): Plugin {
 }
 
 /**
- * A spot page for a place that does not exist, answered 404 by the preview
- * server as the Pages worker answers it in production (mcp/pages/worker.ts),
- * so the e2e suite sees the status a rider and a crawler get. Vite's own
- * single-page fallback would answer it 200. The body is the app all the same,
- * which says what was not found.
+ * The pages the Pages worker answers itself (mcp/pages/worker.ts), answered
+ * the same way by the preview server, so a crawler and the e2e suite see the
+ * status, the title and the crawlable text production sends. Vite's own
+ * single-page fallback would answer a missing spot 200 and leave every path
+ * with the map's head. `/spots` redirects to `/`, as the worker does.
  */
-function missingSpots(): Plugin {
+function servedPages(): Plugin {
   let outDir = "dist";
   return {
-    name: "wingfoil:missing-spots",
+    name: "wingfoil:served-pages",
     configResolved(config) {
       outDir = resolve(config.root, config.build.outDir);
     },
     configurePreviewServer(server) {
       server.middlewares.use((req, res, next) => {
-        const path = (req.url ?? "").split("?")[0];
+        if (req.method !== "GET" && req.method !== "HEAD") return next();
+        const requestUrl = new URL(req.url ?? "/", "https://wingfoil.ie");
+        const dest = redirectFor(requestUrl);
         if (
-          (req.method !== "GET" && req.method !== "HEAD") ||
-          !path.startsWith("/spot/")
-        )
-          return next();
+          dest &&
+          (dest.pathname !== requestUrl.pathname ||
+            dest.search !== requestUrl.search)
+        ) {
+          res.statusCode = 301;
+          res.setHeader("location", `${dest.pathname}${dest.search}`);
+          return res.end();
+        }
         let spots: Map<string, HeadSpot>;
+        let template: string;
         try {
           const list = JSON.parse(
             readFileSync(join(outDir, "riding-locations.json"), "utf8"),
           ) as HeadSpot[];
           spots = new Map(list.map((spot) => [spot.id, spot]));
+          template = readFileSync(join(outDir, "index.html"), "utf8");
         } catch {
           return next();
         }
-        if (!isMissingSpot(path, spots)) return next();
-        res.statusCode = 404;
+        const rendered = renderPath(template, requestUrl.pathname, spots);
+        if (!rendered) return next();
+        res.statusCode = rendered.status;
         res.setHeader("content-type", "text/html; charset=utf-8");
-        res.setHeader("x-robots-tag", "noindex");
+        if (rendered.noindex) res.setHeader("x-robots-tag", "noindex");
         if (req.method === "HEAD") return res.end();
-        res.end(
-          withHead(
-            readFileSync(join(outDir, "index.html"), "utf8"),
-            MISSING_SPOT,
-          ),
-        );
+        res.end(rendered.html);
       });
     },
   };
@@ -277,10 +276,9 @@ function missingPage(): Plugin {
       outDir = resolve(config.root, config.build.outDir);
     },
     closeBundle() {
-      const html = withHead(
+      const html = renderMissing(
         readFileSync(join(outDir, "index.html"), "utf8"),
-        MISSING_PAGE,
-      ).replace("</head>", `<meta name="robots" content="noindex" /></head>`);
+      );
       writeFileSync(join(outDir, "404.html"), html);
     },
   };
@@ -294,7 +292,7 @@ export default defineConfig({
     tailwindcss(),
     preloadTheMap(),
     staticData(),
-    missingSpots(),
+    servedPages(),
     missingPage(),
   ],
   publicDir: e2e ? ".e2e/public" : "public",

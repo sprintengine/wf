@@ -42,7 +42,8 @@ import {
   type SpotForecast,
 } from "../../mcp/api/forecast";
 import { siteSource } from "../../shared/web/forecastSource";
-import { usePageTitle } from "../../shared/web/usePageTitle";
+import { STARS_TITLE } from "../../site/shared/pageTitle";
+import { useExactTitle } from "../../shared/web/usePageTitle";
 import { Heading, Link, NoticeMark, Skeleton, StarGlyphs, Tag } from "../../ui";
 import { MONO_LABEL, tv } from "../../ui/tv";
 import { SpotFrame } from "./Frame";
@@ -96,7 +97,7 @@ const styles = tv({
 const DEFAULT_SPOT = "brandon";
 
 export default function StarsPage() {
-  usePageTitle("How the stars work", "Wind map");
+  useExactTitle(STARS_TITLE);
   const s = styles();
   const [rider, setRider] = useState<Rider>(() => loadPrefs().rider);
   useEffect(() => onPrefsChange(() => setRider(loadPrefs().rider)), []);

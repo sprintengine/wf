@@ -61,6 +61,28 @@ describe("the Pages headers", () => {
     expect(runsWorker("/weather/harmonie.json")).toBe(false);
     expect(runsWorker("/")).toBe(true);
     expect(routes.include).not.toContain("/*");
+    for (const path of ["/spot/", "/spots/", "/market/", "/community/"]) {
+      expect(runsWorker(path), path).toBe(true);
+    }
+  });
+
+  it("has no overlapping rules, which `wrangler pages deploy` refuses", () => {
+    // wrangler's own test: a rule ending in /* overlaps any other rule that
+    // starts with it less the *, so "/spot/*" and "/spot/" cannot both be
+    // listed (the splat already covers "/spot/").
+    const routes = JSON.parse(read("public/_routes.json")) as {
+      include: string[];
+      exclude: string[];
+    };
+    for (const rules of [routes.include, routes.exclude]) {
+      for (const splat of rules.filter((rule) => rule.endsWith("/*"))) {
+        const prefix = splat.slice(0, -1);
+        const overlapping = rules.filter(
+          (rule) => rule !== splat && rule.startsWith(prefix),
+        );
+        expect(overlapping, splat).toEqual([]);
+      }
+    }
   });
 
   it("matches the self-hosted image's Caddyfile", () => {
